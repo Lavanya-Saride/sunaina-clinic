@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -6,58 +6,134 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+
 import { SERVICES, TIME_SLOTS } from '../utils/constants';
-import { submitAppointment } from '../services/appointmentService';
+import {
+  getBookedSlots,
+  submitAppointment,
+} from '../services/appointmentService';
+
+const EMPTY_FORM = {
+  service: '',
+  appointmentDate: '',
+  timeSlot: '',
+  fullName: '',
+  phoneNumber: '',
+  email: '',
+  reasonForVisit: '',
+};
+
+function getToday() {
+  const today = new Date();
+
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function isPastTimeSlot(slot) {
+  const parts = slot.split(' ');
+
+  if (parts.length !== 2) {
+    return false;
+  }
+
+  const [time, period] = parts;
+  const [hours, minutes] = time.split(':').map(Number);
+
+  if (
+    Number.isNaN(hours) ||
+    Number.isNaN(minutes) ||
+    !['AM', 'PM'].includes(period)
+  ) {
+    return false;
+  }
+
+  let hour = hours;
+
+  if (period === 'PM' && hour !== 12) {
+    hour += 12;
+  }
+
+  if (period === 'AM' && hour === 12) {
+    hour = 0;
+  }
+
+  const now = new Date();
+  const slotTime = new Date();
+
+  slotTime.setHours(hour, minutes, 0, 0);
+
+  return slotTime <= now;
+}
 
 export default function AppointmentForm() {
-  const [formData, setFormData] = useState({
-    service: '',
-    appointmentDate: '',
-    timeSlot: '',
-    fullName: '',
-    phoneNumber: '',
-    email: '',
-    reasonForVisit: '',
-  });
-
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [bookedSlots, setBookedSlots] = useState([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const getToday = () => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
+  const isToday =
+    formData.appointmentDate === getToday();
 
-    return `${year}-${month}-${day}`;
-  };
+  const availableSlots = useMemo(() => {
+    return TIME_SLOTS.map((slot) => ({
+      slot,
+      booked: bookedSlots.includes(slot),
+      past: isToday && isPastTimeSlot(slot),
+    }));
+  }, [bookedSlots, isToday]);
 
-  const isToday = formData.appointmentDate === getToday();
+  useEffect(() => {
+    let isMounted = true;
 
-  const isPastTimeSlot = (slot) => {
-    if (!isToday) return false;
+    async function loadBookedSlots() {
+      if (!formData.appointmentDate) {
+        setBookedSlots([]);
+        setIsLoadingSlots(false);
+        return;
+      }
 
-    const now = new Date();
+      setIsLoadingSlots(true);
+      setBookedSlots([]);
 
-    const [time, period] = slot.split(' ');
-    const [hours, minutes] = time.split(':').map(Number);
+      try {
+        const slots = await getBookedSlots(
+          formData.appointmentDate
+        );
 
-    let hour = hours;
+        if (!isMounted) {
+          return;
+        }
 
-    if (period === 'PM' && hour !== 12) {
-      hour += 12;
+        const validBookedSlots = Array.isArray(slots)
+          ? slots.filter((slot) =>
+              TIME_SLOTS.includes(slot)
+            )
+          : [];
+
+        setBookedSlots(validBookedSlots);
+      } catch {
+        if (isMounted) {
+          setBookedSlots([]);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingSlots(false);
+        }
+      }
     }
 
-    if (period === 'AM' && hour === 12) {
-      hour = 0;
-    }
+    loadBookedSlots();
 
-    const slotTime = new Date();
-    slotTime.setHours(hour, minutes, 0, 0);
-
-    return slotTime <= now;
-  };
+    return () => {
+      isMounted = false;
+    };
+  }, [formData.appointmentDate]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -65,8 +141,40 @@ export default function AppointmentForm() {
     setFormData((current) => ({
       ...current,
       [name]: value,
+    }));
 
-      ...(name === 'appointmentDate' ? { timeSlot: '' } : {}),
+    setMessage('');
+    setIsSuccess(false);
+  };
+
+  const handleDateChange = (event) => {
+    const date = event.target.value;
+
+    setFormData((current) => ({
+      ...current,
+      appointmentDate: date,
+      timeSlot: '',
+    }));
+
+    setBookedSlots([]);
+    setMessage('');
+    setIsSuccess(false);
+  };
+
+  const handleTimeChange = (event) => {
+    const time = event.target.value;
+
+    if (bookedSlots.includes(time)) {
+      return;
+    }
+
+    if (isToday && isPastTimeSlot(time)) {
+      return;
+    }
+
+    setFormData((current) => ({
+      ...current,
+      timeSlot: time,
     }));
 
     setMessage('');
@@ -76,33 +184,88 @@ export default function AppointmentForm() {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
+    if (!formData.appointmentDate) {
+      setIsSuccess(false);
+      setMessage('Please select an appointment date.');
+      return;
+    }
+
+    if (!formData.timeSlot) {
+      setIsSuccess(false);
+      setMessage('Please select an appointment time.');
+      return;
+    }
+
+    if (bookedSlots.includes(formData.timeSlot)) {
+      setFormData((current) => ({
+        ...current,
+        timeSlot: '',
+      }));
+
+      return;
+    }
+
+    if (
+      isToday &&
+      isPastTimeSlot(formData.timeSlot)
+    ) {
+      setFormData((current) => ({
+        ...current,
+        timeSlot: '',
+      }));
+
+      return;
+    }
+
+    if (isLoadingSlots) {
+      return;
+    }
+
     setIsSubmitting(true);
     setMessage('');
     setIsSuccess(false);
 
     try {
-      const response = await submitAppointment(formData);
+      const response = await submitAppointment({
+        ...formData,
+        fullName: formData.fullName.trim(),
+        phoneNumber: formData.phoneNumber.trim(),
+        email: formData.email.trim(),
+        reasonForVisit:
+          formData.reasonForVisit.trim(),
+      });
 
       setIsSuccess(true);
+
       setMessage(
-        response?.message || 'Appointment successfully booked.'
+        response?.message ||
+          'Appointment successfully booked.'
       );
 
-      setFormData({
-        service: '',
-        appointmentDate: '',
-        timeSlot: '',
-        fullName: '',
-        phoneNumber: '',
-        email: '',
-        reasonForVisit: '',
-      });
+      setFormData(EMPTY_FORM);
+      setBookedSlots([]);
     } catch (error) {
-      setIsSuccess(false);
+      if (error?.response?.status === 409) {
+        const attemptedSlot = formData.timeSlot;
 
+        setBookedSlots((current) =>
+          current.includes(attemptedSlot)
+            ? current
+            : [...current, attemptedSlot]
+        );
+
+        setFormData((current) => ({
+          ...current,
+          timeSlot: '',
+        }));
+
+        return;
+      }
+
+      setIsSuccess(false);
       setMessage(
-        error.response?.data?.message ||
-          'Something went wrong while booking your appointment. Please try again.'
+        error?.response?.data?.message ||
+          'Something went wrong. Please try again.'
       );
     } finally {
       setIsSubmitting(false);
@@ -115,7 +278,7 @@ export default function AppointmentForm() {
         to="/"
         className="inline-flex items-center gap-2 text-xs font-semibold text-maroon mb-5 hover:underline"
       >
-        <ArrowLeft size={15} aria-hidden="true" />
+        <ArrowLeft size={15} />
         Back to Home
       </Link>
 
@@ -134,7 +297,10 @@ export default function AppointmentForm() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-6"
+        >
           <div className="space-y-5">
             <div>
               <label
@@ -153,10 +319,15 @@ export default function AppointmentForm() {
                   required
                   className="w-full appearance-none bg-[#f7f7f6] border border-transparent focus:border-maroon rounded-xl px-4 py-3 text-sm text-ink outline-none transition-colors"
                 >
-                  <option value="">Choose a service</option>
+                  <option value="">
+                    Choose a service
+                  </option>
 
                   {SERVICES.map((service) => (
-                    <option key={service} value={service}>
+                    <option
+                      key={service}
+                      value={service}
+                    >
                       {service}
                     </option>
                   ))}
@@ -185,7 +356,7 @@ export default function AppointmentForm() {
                     type="date"
                     min={getToday()}
                     value={formData.appointmentDate}
-                    onChange={handleChange}
+                    onChange={handleDateChange}
                     required
                     className="w-full bg-[#f7f7f6] border border-transparent focus:border-maroon rounded-xl px-4 py-3 text-sm text-ink outline-none transition-colors"
                   />
@@ -210,22 +381,33 @@ export default function AppointmentForm() {
                     id="timeSlot"
                     name="timeSlot"
                     value={formData.timeSlot}
-                    onChange={handleChange}
+                    onChange={handleTimeChange}
                     required
-                    disabled={!formData.appointmentDate}
+                    disabled={
+                      !formData.appointmentDate ||
+                      isLoadingSlots
+                    }
                     className="w-full appearance-none bg-[#f7f7f6] border border-transparent focus:border-maroon rounded-xl px-4 py-3 text-sm text-ink outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <option value="">Select a time</option>
+                    <option value="">
+                      {!formData.appointmentDate
+                        ? 'Select a date first'
+                        : isLoadingSlots
+                          ? 'Loading...'
+                          : 'Select a time'}
+                    </option>
 
-                    {TIME_SLOTS.map((slot) => (
-                      <option
-                        key={slot}
-                        value={slot}
-                        disabled={isPastTimeSlot(slot)}
-                      >
-                        {slot}
-                      </option>
-                    ))}
+                    {availableSlots.map(
+                      ({ slot, booked, past }) => (
+                        <option
+                          key={slot}
+                          value={slot}
+                          disabled={booked || past}
+                        >
+                          {slot}
+                        </option>
+                      )
+                    )}
                   </select>
 
                   <ChevronDown
@@ -260,6 +442,8 @@ export default function AppointmentForm() {
                     value={formData.fullName}
                     onChange={handleChange}
                     required
+                    maxLength={100}
+                    autoComplete="name"
                     className="w-full bg-[#f7f7f6] border border-transparent focus:border-maroon rounded-xl px-4 py-3 text-sm text-ink placeholder:text-muted/70 outline-none transition-colors"
                   />
                 </div>
@@ -280,6 +464,8 @@ export default function AppointmentForm() {
                     value={formData.phoneNumber}
                     onChange={handleChange}
                     required
+                    maxLength={25}
+                    autoComplete="tel"
                     className="w-full bg-[#f7f7f6] border border-transparent focus:border-maroon rounded-xl px-4 py-3 text-sm text-ink placeholder:text-muted/70 outline-none transition-colors"
                   />
                 </div>
@@ -301,6 +487,8 @@ export default function AppointmentForm() {
                   value={formData.email}
                   onChange={handleChange}
                   required
+                  maxLength={254}
+                  autoComplete="email"
                   className="w-full bg-[#f7f7f6] border border-transparent focus:border-maroon rounded-xl px-4 py-3 text-sm text-ink placeholder:text-muted/70 outline-none transition-colors"
                 />
               </div>
@@ -310,9 +498,9 @@ export default function AppointmentForm() {
                   htmlFor="reasonForVisit"
                   className="block text-xs font-semibold text-ink mb-2"
                 >
-                  Reason for Visit
+                  Reason for Visit{' '}
                   <span className="font-normal text-muted">
-                    {' '}(Optional)
+                    (Optional)
                   </span>
                 </label>
 
@@ -320,6 +508,7 @@ export default function AppointmentForm() {
                   id="reasonForVisit"
                   name="reasonForVisit"
                   rows="4"
+                  maxLength={1000}
                   placeholder="Share any details you would like the doctor to know before your consultation."
                   value={formData.reasonForVisit}
                   onChange={handleChange}
@@ -331,6 +520,7 @@ export default function AppointmentForm() {
 
           {message && (
             <div
+              role="alert"
               className={`rounded-xl px-4 py-3 text-xs sm:text-sm leading-relaxed ${
                 isSuccess
                   ? 'bg-blush text-maroon'
@@ -343,13 +533,21 @@ export default function AppointmentForm() {
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={
+              isSubmitting ||
+              isLoadingSlots
+            }
             className="w-full inline-flex items-center justify-center gap-2 bg-maroon hover:bg-maroon-dark text-white text-sm font-semibold px-5 py-3.5 rounded-full transition-all duration-300 hover:scale-[1.01] hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
           >
-            {isSubmitting ? 'Booking...' : 'Confirm Appointment'}
+            {isSubmitting
+              ? 'Booking...'
+              : 'Confirm Appointment'}
 
             {!isSubmitting && (
-              <ArrowRight size={17} strokeWidth={2} />
+              <ArrowRight
+                size={17}
+                strokeWidth={2}
+              />
             )}
           </button>
         </form>
