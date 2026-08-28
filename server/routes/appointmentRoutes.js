@@ -1,8 +1,32 @@
-import express from 'express';
-import { createAppointment } from '../controllers/appointmentController.js';
+import { Router } from 'express';
 
-const router = express.Router();
+import {
+  createAppointment,
+  getBookedSlots,
+} from '../controllers/appointmentController.js';
 
-router.post('/', createAppointment);
+import {
+  appointmentValidationRules,
+  bookedSlotsQueryRules,
+  handleAppointmentValidationErrors,
+  rejectUnknownAppointmentFields,
+} from '../middleware/appointmentValidator.js';
+
+const router = Router();
+
+router.get(
+  '/booked-slots',
+  bookedSlotsQueryRules,
+  handleAppointmentValidationErrors,
+  getBookedSlots
+);
+
+router.post(
+  '/',
+  rejectUnknownAppointmentFields,
+  appointmentValidationRules,
+  handleAppointmentValidationErrors,
+  createAppointment
+);
 
 export default router;

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { SERVICES, TIME_SLOTS } from '../utils/constants';
+import { submitAppointment } from '../services/appointmentService';
 
 export default function AppointmentForm() {
   const [formData, setFormData] = useState({
@@ -35,17 +36,11 @@ export default function AppointmentForm() {
   const isToday = formData.appointmentDate === getToday();
 
   const isPastTimeSlot = (slot) => {
-    if (!isToday) {
-      return false;
-    }
+    if (!isToday) return false;
 
     const now = new Date();
 
-    const timeValue = slot
-      .split(' - ')[0]
-      .trim();
-
-    const [time, period] = timeValue.split(' ');
+    const [time, period] = slot.split(' ');
     const [hours, minutes] = time.split(':').map(Number);
 
     let hour = hours;
@@ -70,6 +65,7 @@ export default function AppointmentForm() {
     setFormData((current) => ({
       ...current,
       [name]: value,
+
       ...(name === 'appointmentDate' ? { timeSlot: '' } : {}),
     }));
 
@@ -85,24 +81,12 @@ export default function AppointmentForm() {
     setIsSuccess(false);
 
     try {
-      const response = await fetch('/api/appointment', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || 'Unable to book your appointment. Please try again.'
-        );
-      }
+      const response = await submitAppointment(formData);
 
       setIsSuccess(true);
-      setMessage('Appointment successfully booked.');
+      setMessage(
+        response?.message || 'Appointment successfully booked.'
+      );
 
       setFormData({
         service: '',
@@ -114,8 +98,10 @@ export default function AppointmentForm() {
         reasonForVisit: '',
       });
     } catch (error) {
+      setIsSuccess(false);
+
       setMessage(
-        error.message ||
+        error.response?.data?.message ||
           'Something went wrong while booking your appointment. Please try again.'
       );
     } finally {
@@ -128,7 +114,7 @@ export default function AppointmentForm() {
       <Link
         to="/"
         className="inline-flex items-center gap-2 text-xs font-semibold text-maroon mb-5 hover:underline"
-       >
+      >
         <ArrowLeft size={15} aria-hidden="true" />
         Back to Home
       </Link>

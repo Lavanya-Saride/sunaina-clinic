@@ -14,21 +14,29 @@ export default function Carousel({
 }) {
   const prefersReducedMotion = useReducedMotion();
 
+  const hasItems = Array.isArray(items) && items.length > 0;
+
   const autoplay = useMemo(() => {
-    if (prefersReducedMotion) {
-      return undefined;
+    if (prefersReducedMotion || !hasItems || items.length < 2) {
+      return null;
     }
 
     return Autoplay({
       delay: autoplayDelay,
       stopOnInteraction: false,
-      stopOnMouseEnter: true,
+      stopOnMouseEnter: false,
+      playOnInit: false,
     });
-  }, [autoplayDelay, prefersReducedMotion]);
+  }, [
+    prefersReducedMotion,
+    hasItems,
+    items?.length,
+    autoplayDelay,
+  ]);
 
   const [emblaRef, emblaApi] = useEmblaCarousel(
     {
-      loop,
+      loop: loop && items?.length > 1,
       align: 'start',
       dragFree: false,
       containScroll: 'trimSnaps',
@@ -40,16 +48,25 @@ export default function Carousel({
   const [scrollSnaps, setScrollSnaps] = useState([]);
 
   const onSelect = useCallback((api) => {
+    if (!api) {
+      return;
+    }
+
     setSelectedIndex(api.selectedScrollSnap());
   }, []);
 
   useEffect(() => {
     if (!emblaApi) {
-      return;
+      return undefined;
     }
 
     const updateCarousel = () => {
-      setScrollSnaps(emblaApi.scrollSnapList());
+      const snaps = emblaApi.scrollSnapList();
+
+      setScrollSnaps(
+        Array.isArray(snaps) ? snaps : []
+      );
+
       onSelect(emblaApi);
     };
 
@@ -64,7 +81,55 @@ export default function Carousel({
     };
   }, [emblaApi, onSelect]);
 
-  if (!items?.length) {
+  useEffect(() => {
+    if (!emblaApi || !autoplay) {
+      return undefined;
+    }
+
+    const snaps = emblaApi.scrollSnapList();
+
+    if (!Array.isArray(snaps) || snaps.length < 2) {
+      return undefined;
+    }
+
+    // Start autoplay only after Embla has initialized
+    // and has a valid list of scroll snaps.
+    autoplay.play();
+
+    return () => {
+      autoplay.stop();
+    };
+  }, [emblaApi, autoplay]);
+
+  const handleMouseEnter = useCallback(() => {
+    if (!autoplay || !emblaApi) {
+      return;
+    }
+
+    const snaps = emblaApi.scrollSnapList();
+
+    if (!Array.isArray(snaps) || snaps.length < 2) {
+      return;
+    }
+
+    autoplay.stop();
+  }, [autoplay, emblaApi]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (!autoplay || !emblaApi) {
+      return;
+    }
+
+    const snaps = emblaApi.scrollSnapList();
+
+    if (!Array.isArray(snaps) || snaps.length < 2) {
+      return;
+    }
+
+    autoplay.play();
+  }, [autoplay, emblaApi]);
+
+  if (!hasItems) {
     return null;
   }
 
@@ -73,8 +138,8 @@ export default function Carousel({
       role="region"
       aria-label={ariaLabel}
       className="relative"
-      onMouseEnter={() => autoplay?.stop()}
-      onMouseLeave={() => autoplay?.play()}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <div
         ref={emblaRef}
@@ -98,9 +163,17 @@ export default function Carousel({
             <button
               key={index}
               type="button"
-              onClick={() => emblaApi?.scrollTo(index)}
+              onClick={() => {
+                if (emblaApi) {
+                  emblaApi.scrollTo(index);
+                }
+              }}
               aria-label={`Go to slide ${index + 1}`}
-              aria-current={index === selectedIndex}
+              aria-current={
+                index === selectedIndex
+                  ? 'true'
+                  : undefined
+              }
               className={`h-1.5 rounded-full transition-all duration-300 ${
                 index === selectedIndex
                   ? 'w-5 bg-maroon'

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { MapPin, Clock, Phone, Check } from 'lucide-react';
 import doctorPhoto from '../assets/images/doctor.jpg';
 import { CLINIC, DIRECTIONS_URL } from '../utils/constants';
@@ -27,12 +28,12 @@ export default function Hero() {
             </p>
 
             <div className="w-full max-w-[360px] mx-auto md:mx-0">
-              <a
-                href="/appointment"
+              <Link
+                to="/appointment"
                 className="flex items-center justify-center w-full bg-maroon text-white text-xs font-semibold px-4 py-2.5 rounded-full transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-lg"
               >
                 Book an Appointment
-              </a>
+              </Link>
 
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <a
@@ -63,7 +64,7 @@ export default function Hero() {
               />
             </div>
 
-           <div className="absolute left-1/2 -translate-x-1/2 bottom-1 sm:bottom-2 lg:bottom-3 min-w-[230px] sm:min-w-[250px] bg-white rounded-xl shadow-card border border-line px-3.5 py-2.5 flex items-center gap-2.5">
+            <div className="absolute left-1/2 -translate-x-1/2 bottom-1 sm:bottom-2 lg:bottom-3 min-w-[230px] sm:min-w-[250px] bg-white rounded-xl shadow-card border border-line px-3.5 py-2.5 flex items-center gap-2.5">
               <span className="w-8 h-8 rounded-full bg-blush flex items-center justify-center text-maroon shrink-0">
                 <Check
                   size={16}

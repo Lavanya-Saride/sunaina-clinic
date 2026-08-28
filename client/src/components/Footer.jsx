@@ -1,4 +1,5 @@
 import { MapPin, Phone, Clock } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import logo from '../assets/images/logo.png';
 import title from '../assets/images/title.png';
 import { CLINIC, DIRECTIONS_URL } from '../utils/constants';
@@ -10,17 +11,23 @@ export default function Footer() {
         <div className="grid gap-10 md:grid-cols-[1fr_1fr] md:gap-16">
           <div className="text-center md:text-left">
             <div className="flex items-center justify-center md:justify-start mb-4">
-              <img
-                src={logo}
-                alt="Sunaina Clinic logo"
-                className="w-12 h-12 sm:w-[52px] sm:h-[52px] lg:w-[56px] lg:h-[56px] object-contain shrink-0"
-              />
+              <Link
+                to="/"
+                className="flex items-center"
+                aria-label="Sunaina Clinic home"
+              >
+                <img
+                  src={logo}
+                  alt="Sunaina Clinic logo"
+                  className="w-12 h-12 sm:w-[52px] sm:h-[52px] lg:w-[56px] lg:h-[56px] object-contain shrink-0"
+                />
 
-              <img
-                src={title}
-                alt="Sunaina Clinic"
-                className="-ml-[6px] sm:-ml-[8px] lg:-ml-[10px] h-7 sm:h-8 lg:h-9 w-auto object-contain shrink-0"
-              />
+                <img
+                  src={title}
+                  alt="Sunaina Clinic"
+                  className="-ml-[6px] sm:-ml-[8px] lg:-ml-[10px] h-7 sm:h-8 lg:h-9 w-auto object-contain shrink-0"
+                />
+              </Link>
             </div>
 
             <p className="text-xs text-muted max-w-sm mx-auto md:mx-0 leading-relaxed mb-5">
@@ -28,13 +35,13 @@ export default function Footer() {
               of life.
             </p>
 
-           <div className="w-full max-w-[360px] mx-auto md:mx-0">
-              <a
-                href="/appointment"
+            <div className="w-full max-w-[360px] mx-auto md:mx-0">
+              <Link
+                to="/appointment"
                 className="flex items-center justify-center w-full bg-maroon text-white text-xs font-semibold px-4 py-2.5 rounded-full transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-lg"
               >
                 Book an Appointment
-              </a>
+              </Link>
 
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <a
