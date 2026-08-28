@@ -14,11 +14,11 @@ export default function Hero() {
             </p>
 
             <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-bold text-ink leading-[1.13] mb-4">
-              Expert Gynaecological Care,{' '}
+              Expert Care for Women,{' '}
               <span className="italic font-semibold text-maroon">
-                Guided by International Training
+                Through Every Stage
               </span>{' '}
-              and a Personal Approach.
+               of Life
             </h1>
 
             <p className="text-muted text-sm sm:text-[15px] leading-relaxed mb-6 max-w-lg mx-auto lg:mx-0">
