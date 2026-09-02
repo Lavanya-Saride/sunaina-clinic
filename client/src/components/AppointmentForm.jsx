@@ -522,11 +522,11 @@ export default function AppointmentForm() {
             <div
               role="alert"
               className={`rounded-xl px-4 py-3 text-xs sm:text-sm leading-relaxed ${
-                isSuccess
-                  ? 'bg-blush text-maroon'
-                  : 'bg-red-50 text-red-600'
-              }`}
-            >
+                    isSuccess
+                    ? 'bg-green-50 text-green-700 border border-green-200'
+                    : 'bg-red-50 text-red-600 border border-red-200'
+                }`}
+>
               {message}
             </div>
           )}

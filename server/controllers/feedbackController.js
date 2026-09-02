@@ -4,6 +4,7 @@ export async function getFeedback(req, res, next) {
   try {
     const feedback = await Feedback.find()
       .sort({ createdAt: -1 })
+      .limit(10)
       .select('name service story createdAt updatedAt')
       .lean();
 

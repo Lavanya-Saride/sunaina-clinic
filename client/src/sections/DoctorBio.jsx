@@ -3,8 +3,8 @@ import doctorPhoto from '../assets/images/doctor.jpg';
 import { CLINIC } from '../utils/constants';
 
 const HIGHLIGHTS = [
-  'Specialist training in Obstetrics and Gynaecology',
-  'Professional experience and training within NHS England',
+  'MBBS (PMCH, Patna), MS (Obstetrics & Gynaecology)',
+  '25+ years of clinical experience; Ex-Senior Doctor, National Health Service (NHS), England',
   'Personalised, patient-centred care for every stage of women’s health'
 ];
 
@@ -33,17 +33,23 @@ export default function DoctorBio() {
               {CLINIC.doctor}
             </h2>
 
-            <p className="text-xs sm:text-sm text-muted leading-relaxed mb-5 max-w-2xl mx-auto lg:mx-0 text-center">
-              With specialist training in obstetrics and gynaecology, including
-              experience within the NHS in England, Dr. Priyanka brings together
-              clinical expertise and a thoughtful, personal approach to care.
+            <p className="text-xs sm:text-sm text-muted leading-relaxed mb-5 max-w-2xl mx-auto lg:mx-0 text-justify">
+              With specialist training in obstetrics and gynaecology, Dr. Priyanka
+              brings together strong academic qualifications, including MBBS (PMCH,
+              Patna) and MS (Obs & Gynae), with professional experience as an Ex
+              Senior Doctor with the National Health Service (NHS), England. Her 25+
+              years of Clinical experience have shaped a thoughtful, experienced and
+              personal approach to women&apos;s healthcare.
             </p>
 
-            <p className="text-xs sm:text-sm text-muted leading-relaxed mb-6 max-w-2xl mx-auto lg:mx-0 text-center">
-              From pregnancy and fertility concerns to PCOS, gynaecological
-              health and ongoing women&apos;s wellness, every consultation is
-              centred around clear guidance, informed decisions and care that
-              recognises each patient&apos;s individual needs.
+            <p className="text-xs sm:text-sm text-muted leading-relaxed mb-6 max-w-2xl mx-auto lg:mx-0 text-justify">
+              From pregnancy and fertility concerns to PCOS, gynaecological health
+              and ongoing women&apos;s wellness, every consultation is centred around
+              clear guidance, informed decisions and care that recognises each
+              patient&apos;s individual needs. With extensive clinical experience
+              across different stages of women&apos;s health, Dr. Priyanka is
+              committed to providing personalised, patient-centred care in a
+              comfortable and supportive environment.
             </p>
 
             <ul className="space-y-3 inline-block text-left">

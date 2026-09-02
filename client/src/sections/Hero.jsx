@@ -1,16 +1,20 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MapPin, Clock, Phone, Check } from 'lucide-react';
 import doctorPhoto from '../assets/images/doctor.jpg';
 import { CLINIC, DIRECTIONS_URL } from '../utils/constants';
+import ContactPopup from '../components/ContactPopup';
 
 export default function Hero() {
+  const [showContact, setShowContact] = useState(false);
+
   return (
     <section id="home" className="scroll-mt-20 overflow-hidden">
       <div className="max-w-6xl mx-auto px-5 sm:px-7 lg:px-10 pt-4 sm:pt-5 lg:pt-6 pb-6 sm:pb-7 lg:pb-8">
         <div className="grid lg:grid-cols-[1.05fr_.95fr] gap-7 lg:gap-10 items-center">
           <div className="text-center lg:text-left max-w-xl mx-auto lg:mx-0">
             <p className="text-[9px] sm:text-[10px] font-semibold tracking-[0.12em] text-maroon uppercase mb-3">
-              Personal, Patient-Centred Women&apos;s Healthcare
+              Experienced Care, Shaped by Global Standards
             </p>
 
             <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-bold text-ink leading-[1.13] mb-4">
@@ -18,13 +22,14 @@ export default function Hero() {
               <span className="italic font-semibold text-maroon">
                 Through Every Stage
               </span>{' '}
-               of Life
+              of Life
             </h1>
 
             <p className="text-muted text-sm sm:text-[15px] leading-relaxed mb-6 max-w-lg mx-auto lg:mx-0">
-              Thoughtful, individualised care for every stage of a woman&apos;s
-              health journey from pregnancy and fertility to PCOS,
-              gynaecological concerns and ongoing wellness.
+              Bringing over 25 years of clinical experience, including experience
+              within the NHS in England, Dr. Priyanka Singh offers personalised,
+              expert-led care with a thoughtful approach to every woman&apos;s
+              individual needs.
             </p>
 
             <div className="w-full max-w-[360px] mx-auto md:mx-0">
@@ -36,12 +41,13 @@ export default function Hero() {
               </Link>
 
               <div className="grid grid-cols-2 gap-3 mt-3">
-                <a
-                  href={CLINIC.phoneHref}
+                <button
+                  type="button"
+                  onClick={() => setShowContact(true)}
                   className="inline-flex items-center justify-center border border-maroon text-maroon text-xs font-semibold px-3 py-2.5 rounded-full transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-md"
                 >
                   Contact Us
-                </a>
+                </button>
 
                 <a
                   href={DIRECTIONS_URL}
@@ -144,6 +150,10 @@ export default function Hero() {
           </div>
         </div>
       </div>
+
+      {showContact && (
+        <ContactPopup onClose={() => setShowContact(false)} />
+      )}
     </section>
   );
 }

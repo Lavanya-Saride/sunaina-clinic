@@ -38,14 +38,7 @@ export const createAppointment = async (req, res, next) => {
       reasonForVisit = '',
     } = req.body;
 
-    console.log('CREATE APPOINTMENT REQUEST:', {
-      service,
-      appointmentDate,
-      timeSlot,
-      fullName,
-      phoneNumber,
-      email,
-    });
+    console.log('Creating appointment request');
 
     const existingAppointment = await Appointment.findOne({
       appointmentDate,

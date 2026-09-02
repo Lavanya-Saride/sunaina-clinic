@@ -1,10 +1,14 @@
+import { useState } from 'react';
 import { MapPin, Phone, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import logo from '../assets/images/logo.png';
 import title from '../assets/images/title.png';
 import { CLINIC, DIRECTIONS_URL } from '../utils/constants';
+import ContactPopup from './ContactPopup';
 
 export default function Footer() {
+  const [showContact, setShowContact] = useState(false);
+
   return (
     <footer className="bg-white border-t border-line">
       <div className="max-w-6xl mx-auto px-5 sm:px-7 lg:px-10 py-10 sm:py-12">
@@ -44,12 +48,13 @@ export default function Footer() {
               </Link>
 
               <div className="grid grid-cols-2 gap-3 mt-3">
-                <a
-                  href={CLINIC.phoneHref}
+                <button
+                  type="button"
+                  onClick={() => setShowContact(true)}
                   className="inline-flex items-center justify-center border border-maroon text-maroon text-xs font-semibold px-3 py-2.5 rounded-full transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-md"
                 >
                   Contact Us
-                </a>
+                </button>
 
                 <a
                   href={DIRECTIONS_URL}
@@ -96,12 +101,13 @@ export default function Footer() {
                   />
                 </span>
 
-                <a
-                  href={CLINIC.phoneHref}
+                <button
+                  type="button"
+                  onClick={() => setShowContact(true)}
                   className="font-medium transition-colors hover:text-maroon"
                 >
                   {CLINIC.phone}
-                </a>
+                </button>
               </li>
 
               <li className="flex items-start gap-3">
@@ -130,6 +136,10 @@ export default function Footer() {
           </div>
         </div>
       </div>
+
+      {showContact && (
+        <ContactPopup onClose={() => setShowContact(false)} />
+      )}
 
       <div className="border-t border-line">
         <div className="max-w-6xl mx-auto px-5 sm:px-7 lg:px-10 py-5">

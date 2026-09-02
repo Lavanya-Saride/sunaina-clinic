@@ -32,4 +32,6 @@ const feedbackSchema = new mongoose.Schema(
   }
 );
 
+feedbackSchema.index({ createdAt: -1 });
+
 export default mongoose.model('Feedback', feedbackSchema);
