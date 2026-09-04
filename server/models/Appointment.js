@@ -1,14 +1,5 @@
 import mongoose from 'mongoose';
 
-export const APPOINTMENT_SERVICES = [
-  'Pregnancy & Maternity Care',
-  'Gynecology Consultation',
-  'PCOS & Hormonal Health',
-  "Women's Wellness",
-  'Diagnostics & Preventive Care',
-  'Minimally Invasive Care',
-];
-
 export const TIME_SLOTS = [
   '10:00 AM',
   '10:30 AM',
@@ -23,21 +14,10 @@ export const TIME_SLOTS = [
   '05:30 PM',
   '06:00 PM',
   '06:30 PM',
-  '07:00 PM',
 ];
 
 const appointmentSchema = new mongoose.Schema(
   {
-    service: {
-      type: String,
-      required: [true, 'Service is required.'],
-      enum: {
-        values: APPOINTMENT_SERVICES,
-        message: 'Please select a valid service.',
-      },
-      trim: true,
-    },
-
     appointmentDate: {
       type: String,
       required: [true, 'Appointment date is required.'],
@@ -73,19 +53,9 @@ const appointmentSchema = new mongoose.Schema(
 
     email: {
       type: String,
-      required: [true, 'Email is required.'],
       trim: true,
       lowercase: true,
       maxlength: [254, 'Email is too long.'],
-    },
-
-    reasonForVisit: {
-      type: String,
-      trim: true,
-      maxlength: [
-        1000,
-        'Reason for visit must be under 1000 characters.',
-      ],
       default: '',
     },
   },

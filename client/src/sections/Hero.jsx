@@ -18,18 +18,15 @@ export default function Hero() {
             </p>
 
             <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-bold text-ink leading-[1.13] mb-4">
-              Expert Care for Women,{' '}
+              25+ Years of Trust,{' '}
               <span className="italic font-semibold text-maroon">
-                Through Every Stage
+                Former Senior Doctor, 
               </span>{' '}
-              of Life
+              NHS England
             </h1>
 
             <p className="text-muted text-sm sm:text-[15px] leading-relaxed mb-6 max-w-lg mx-auto lg:mx-0">
-              Bringing over 25 years of clinical experience, including experience
-              within the NHS in England, Dr. Priyanka Singh offers personalised,
-              expert-led care with a thoughtful approach to every woman&apos;s
-              individual needs.
+              Expert care for women, Through every stage of life, patient-centered Obs & Gyn care by Dr. Priyanka Singh (MBBS, PMCH). Bringing international clinical standards home to Ranchi.
             </p>
 
             <div className="w-full max-w-[360px] mx-auto md:mx-0">
@@ -85,7 +82,7 @@ export default function Hero() {
                 </p>
 
                 <p className="text-[10px] text-muted">
-                  Specialist Women&apos;s Healthcare
+                  Specialized in Obstetrics
                 </p>
               </div>
             </div>

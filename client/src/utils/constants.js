@@ -19,18 +19,6 @@ export const NAV_LINKS = [
   { label: 'Feedback', href: '#feedback' }
 ];
 
-export const SERVICE_OPTIONS = ['Maternity Care', 'Gynecology', 'Wellness', 'Others'];
-
-
-export const SERVICES = [
-  'Pregnancy & Maternity Care',
-  'Gynecology Consultation',
-  'PCOS & Hormonal Health',
-  "Women's Wellness",
-  'Diagnostics & Preventive Care',
-  'Minimally Invasive Care'
-];
-
 export const TIME_SLOTS = [
   '10:00 AM',
   '10:30 AM',
@@ -45,5 +33,4 @@ export const TIME_SLOTS = [
   '05:30 PM',
   '06:00 PM',
   '06:30 PM',
-  '07:00 PM',
 ];

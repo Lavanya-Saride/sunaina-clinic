@@ -5,6 +5,16 @@ export const SPECIALITIES = [
     icon: 'Baby'
   },
   {
+    id: 'normal-csection-deliveries',
+    title: 'Normal & C-Section Deliveries',
+    icon: 'Scissors'
+  },
+  {
+    id: 'gynecological-care',
+    title: 'Gynaecological Care',
+    icon: 'CrossIcon'
+  },
+  {
     id: 'fertility',
     title: 'Fertility & Preconception Care',
     icon: 'Flower'
@@ -15,18 +25,8 @@ export const SPECIALITIES = [
     icon: 'Droplet'
   },
   {
-    id: 'gynecological-care',
-    title: 'Gynaecological Care',
-    icon: 'CrossIcon'
-  },
-  {
     id: 'womens-wellness',
     title: 'Women’s Wellness',
     icon: 'Stethoscope'
-  },
-  {
-    id: 'minimally-invasive-care',
-    title: 'Minimally Invasive Care',
-    icon: 'Scissors'
   }
 ];

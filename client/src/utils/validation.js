@@ -1,14 +1,13 @@
-import { SERVICE_OPTIONS } from './constants';
-
 export const FEEDBACK_LIMITS = {
   name: { min: 2, max: 80 },
   story: { min: 10, max: 1000 },
 };
 
-export function validateFeedbackForm({ name, service, story }) {
+export function validateFeedbackForm({ name, story }) {
   const errors = {};
 
   const trimmedName = (name || '').trim();
+
   if (!trimmedName) {
     errors.name = 'Please enter your name.';
   } else if (trimmedName.length < FEEDBACK_LIMITS.name.min) {
@@ -17,13 +16,8 @@ export function validateFeedbackForm({ name, service, story }) {
     errors.name = `Name must be under ${FEEDBACK_LIMITS.name.max} characters.`;
   }
 
-  if (!service) {
-    errors.service = 'Please select a service.';
-  } else if (!SERVICE_OPTIONS.includes(service)) {
-    errors.service = 'Please select a valid service option.';
-  }
-
   const trimmedStory = (story || '').trim();
+
   if (!trimmedStory) {
     errors.story = 'Please share a few words about your experience.';
   } else if (trimmedStory.length < FEEDBACK_LIMITS.story.min) {

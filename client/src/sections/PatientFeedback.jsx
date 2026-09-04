@@ -15,7 +15,6 @@ export default function PatientFeedback() {
   const renderFeedbackCard = (item) => (
     <FeedbackCard
       name={item.name}
-      service={item.service}
       story={item.story}
     />
   );

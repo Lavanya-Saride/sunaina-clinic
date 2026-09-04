@@ -1,8 +1,5 @@
 import { body, query, validationResult } from 'express-validator';
-import {
-  APPOINTMENT_SERVICES,
-  TIME_SLOTS,
-} from '../models/Appointment.js';
+import { TIME_SLOTS } from '../models/Appointment.js';
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const PHONE_REGEX = /^(?:\+91[\s-]?)?[6-9]\d{9}$/;
@@ -34,17 +31,6 @@ function getTodayString() {
 }
 
 export const appointmentValidationRules = [
-  body('service')
-    .exists({ checkFalsy: true })
-    .withMessage('Service is required.')
-    .bail()
-    .isString()
-    .withMessage('Service must be text.')
-    .bail()
-    .trim()
-    .isIn(APPOINTMENT_SERVICES)
-    .withMessage('Please select a valid service.'),
-
   body('appointmentDate')
     .exists({ checkFalsy: true })
     .withMessage('Appointment date is required.')
@@ -110,9 +96,7 @@ export const appointmentValidationRules = [
     }),
 
   body('email')
-    .exists({ checkFalsy: true })
-    .withMessage('Email is required.')
-    .bail()
+    .optional({ nullable: true, checkFalsy: true })
     .isString()
     .withMessage('Email must be text.')
     .bail()
@@ -122,17 +106,6 @@ export const appointmentValidationRules = [
     .bail()
     .isLength({ max: 254 })
     .withMessage('Email is too long.'),
-
-  body('reasonForVisit')
-    .optional({ nullable: true })
-    .isString()
-    .withMessage('Reason for visit must be text.')
-    .bail()
-    .trim()
-    .isLength({ max: 1000 })
-    .withMessage(
-      'Reason for visit must be under 1000 characters.'
-    ),
 ];
 
 export const bookedSlotsQueryRules = [
@@ -160,13 +133,11 @@ export function rejectUnknownAppointmentFields(
   next
 ) {
   const allowedFields = [
-    'service',
     'appointmentDate',
     'timeSlot',
     'fullName',
     'phoneNumber',
     'email',
-    'reasonForVisit',
   ];
 
   const unexpected = Object.keys(req.body || {}).filter(

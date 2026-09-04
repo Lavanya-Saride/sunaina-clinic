@@ -11,14 +11,6 @@ const feedbackSchema = new mongoose.Schema(
       minlength: [2, 'Name must be at least 2 characters.'],
       maxlength: [80, 'Name must be under 80 characters.'],
     },
-    service: {
-      type: String,
-      required: [true, 'Service is required.'],
-      enum: {
-        values: SERVICE_OPTIONS,
-        message: 'Service must be one of: Maternity Care, Gynecology, Wellness, Others.',
-      },
-    },
     story: {
       type: String,
       required: [true, 'Story is required.'],
