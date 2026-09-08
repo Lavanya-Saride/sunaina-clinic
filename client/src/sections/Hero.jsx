@@ -18,15 +18,15 @@ export default function Hero() {
             </p>
 
             <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-bold text-ink leading-[1.13] mb-4">
-              25+ Years of Trust,{' '}
+              25+ Years of Experience,{' '}
               <span className="italic font-semibold text-maroon">
-                Former Senior Doctor, 
+                Ex-Senior Doctor, 
               </span>{' '}
               NHS England
             </h1>
 
             <p className="text-muted text-sm sm:text-[15px] leading-relaxed mb-6 max-w-lg mx-auto lg:mx-0">
-              Expert care for women, Through every stage of life, patient-centered Obs & Gyn care by Dr. Priyanka Singh (MBBS, PMCH). Bringing international clinical standards home to Ranchi.
+              Expert care for women at every stage of life. Obs & Gyn care by Dr. Priyanka Singh (MBBS, PMCH | MS (Obs & Gyn)). Bringing international clinical standards home to Ranchi.
             </p>
 
             <div className="w-full max-w-[360px] mx-auto md:mx-0">
@@ -35,8 +35,8 @@ export default function Hero() {
                 className="flex items-center justify-center w-full bg-maroon text-white text-xs font-semibold px-4 py-2.5 rounded-full transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-lg"
               >
                 Book an Appointment
-              </Link>
-
+              </Link> 
+               
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <button
                   type="button"

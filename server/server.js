@@ -8,6 +8,7 @@ import connectDB from './config/db.js';
 import feedbackRoutes from './routes/feedbackRoutes.js';
 import healthRoutes from './routes/healthRoutes.js';
 import appointmentRoutes from './routes/appointmentRoutes.js';
+import contactRoutes from './routes/contactRoutes.js';
 
 import {
   notFound,
@@ -71,6 +72,7 @@ app.use('/api', apiLimiter);
 app.use('/api/health', healthRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/appointment', appointmentRoutes);
+app.use('/api/contact', contactRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
