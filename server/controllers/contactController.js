@@ -13,7 +13,7 @@ export async function requestCallback(req, res, next) {
     return res.status(200).json({
       success: true,
       message:
-        'Your callback request has been received. Our team will contact you during clinic hours.',
+        'Thank you. Our team will contact you soon.',
     });
   } catch (error) {
     console.error('CALLBACK REQUEST ERROR:', {

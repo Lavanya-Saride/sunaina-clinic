@@ -36,8 +36,8 @@ export default function DoctorBio() {
             <p className="text-xs sm:text-sm text-muted leading-relaxed mb-5 max-w-2xl mx-auto lg:mx-0 text-justify">
               With specialist training in obstetrics and gynaecology, Dr. Priyanka
               brings together strong academic qualifications, including MBBS (PMCH,
-              Patna) and MS (Obs & Gynae), with professional experience as a Former
-              Senior Doctor with the National Health Service (NHS), England. Her 25+
+              Patna) and MS (Obs & Gynae), with professional experience as a Ex-Senior
+              Doctor with the National Health Service (NHS), England. Her 25+
               years of Clinical experience have shaped a thoughtful, experienced and
               personal approach to women&apos;s healthcare.
             </p>

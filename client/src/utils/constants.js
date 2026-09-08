@@ -3,21 +3,27 @@ export const CLINIC = {
   doctor: 'Dr. Priyanka Singh',
   phone: '+91 93342 36233',
   phoneHref: 'tel:+919334236233',
-  hours: 'Mon - Sat, 10:00 AM - 7:00 PM',
+
+  workingHours: 'Mon - Sat, 10:00 AM - 7:00 PM',
   timezone: 'Asia/Kolkata',
   hoursNote: 'Sunday Closed',
+
+  openingTime: 10,
+  closingTime: 19,
+
   address: {
-    full: '301 C, 3rd Floor, Sri Sai Tower, Burdwan Compound, P&T Colony, Lalpur, Ranchi, Jharkhand 834001, India'
-  }
+    full: '301 C, 3rd Floor, Sri Sai Tower, Burdwan Compound, P&T Colony, Lalpur, Ranchi, Jharkhand 834001, India',
+  },
 };
 
-export const DIRECTIONS_URL ='https://www.google.com/maps/dir/?api=1&destination=23.375408%2C85.335911&travelmode=driving&dir_action=navigate';
+export const DIRECTIONS_URL =
+  'https://www.google.com/maps/dir/?api=1&destination=23.375408%2C85.335911&travelmode=driving&dir_action=navigate';
 
 export const NAV_LINKS = [
   { label: 'Home', href: '#home' },
   { label: 'Specialities', href: '#specialities' },
   { label: 'About Us', href: '#about' },
-  { label: 'Feedback', href: '#feedback' }
+  { label: 'Feedback', href: '#feedback' },
 ];
 
 export const TIME_SLOTS = [
@@ -35,5 +41,3 @@ export const TIME_SLOTS = [
   '06:00 PM',
   '06:30 PM',
 ];
-
-

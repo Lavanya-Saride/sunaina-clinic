@@ -40,19 +40,22 @@ export default function Footer() {
             </p>
 
             <div className="w-full max-w-[360px] mx-auto md:mx-0">
+              {/*
               <Link
                 to="/appointment"
                 className="flex items-center justify-center w-full bg-maroon text-white text-xs font-semibold px-4 py-2.5 rounded-full transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-lg"
               >
                 Book an Appointment
               </Link>
+              */}
 
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <button
                   type="button"
                   onClick={() => setShowContact(true)}
-                  className="inline-flex items-center justify-center border border-maroon text-maroon text-xs font-semibold px-3 py-2.5 rounded-full transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-md"
+                  className="inline-flex items-center justify-center gap-2 bg-maroon text-white text-xs font-semibold px-3 py-2.5 rounded-full transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-lg"
                 >
+                  <Phone size={15} />
                   Contact Us
                 </button>
 
@@ -121,7 +124,7 @@ export default function Footer() {
 
                 <span className="leading-relaxed pt-1">
                   <span className="font-medium text-ink">
-                    {CLINIC.hours}
+                    {CLINIC.workingHours}
                   </span>
 
                   {CLINIC.hoursNote && (
