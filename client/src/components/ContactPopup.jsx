@@ -210,44 +210,46 @@ export default function ContactPopup({ onClose }) {
           </div>
 
           {isClinicOpen && (
-            <div className="mt-5 space-y-3">
-              <a
-                href={CLINIC.phoneHref}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#4F172D] px-5 py-3.5 text-sm font-medium text-white transition hover:bg-[#3F1224]"
-              >
-                <Phone size={17} />
-                Call Clinic
-              </a>
+            <>
+              <div className="mt-5 space-y-3">
+                <a
+                  href={CLINIC.phoneHref}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#4F172D] px-5 py-3.5 text-sm font-medium text-white transition hover:bg-[#3F1224]"
+                >
+                  <Phone size={17} />
+                  Call Clinic
+                </a>
 
-              <button
-                type="button"
-                onClick={handleCopyNumber}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#E7E1E3] bg-white px-5 py-3.5 text-sm font-medium text-[#4F172D] transition hover:bg-[#FBF9F9]"
-              >
-                {copied ? (
-                  <>
-                    <Check size={17} />
-                    Number Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy size={17} />
-                    Copy Number
-                  </>
-                )}
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={handleCopyNumber}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#E7E1E3] bg-white px-5 py-3.5 text-sm font-medium text-[#4F172D] transition hover:bg-[#FBF9F9]"
+                >
+                  {copied ? (
+                    <>
+                      <Check size={17} />
+                      Number Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={17} />
+                      Copy Number
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="my-5 flex items-center gap-3">
+                <div className="h-px flex-1 bg-[#E7E1E3]" />
+
+                <span className="text-center text-[11px] text-muted">
+                  Can&apos;t connect? Leave your number and we&apos;ll call you back.
+                </span>
+
+                <div className="h-px flex-1 bg-[#E7E1E3]" />
+              </div>
+            </>
           )}
-
-          <div className="my-5 flex items-center gap-3">
-            <div className="h-px flex-1 bg-[#E7E1E3]" />
-
-            <span className="text-center text-[11px] text-muted">
-              Can&apos;t connect? Leave your number and we&apos;ll call you back.
-            </span>
-
-            <div className="h-px flex-1 bg-[#E7E1E3]" />
-          </div>
 
           {message && (
             <div
@@ -263,7 +265,7 @@ export default function ContactPopup({ onClose }) {
           )}
 
           <form
-            className="mt-5 space-y-4"
+            className={`${message ? 'mt-5' : ''} space-y-4`}
             onSubmit={handleSubmit}
           >
             <div>
