@@ -13,7 +13,9 @@ export default function Carousel({
   loop = false,
 }) {
   const prefersReducedMotion = useReducedMotion();
-  const hasItems = Array.isArray(items) && items.length > 0;
+
+  const hasItems =
+    Array.isArray(items) && items.length > 0;
 
   const autoplay = useMemo(() => {
     if (
@@ -37,22 +39,28 @@ export default function Carousel({
     autoplayDelay,
   ]);
 
-  const [emblaRef, emblaApi] = useEmblaCarousel(
-    {
-      loop: loop && items?.length > 1,
-      align: 'start',
-      dragFree: false,
-      containScroll: 'trimSnaps',
-    },
-    autoplay ? [autoplay] : []
-  );
+  const [emblaRef, emblaApi] =
+    useEmblaCarousel(
+      {
+        loop: loop && items?.length > 1,
+        align: 'start',
+        dragFree: false,
+        containScroll: 'trimSnaps',
+      },
+      autoplay ? [autoplay] : []
+    );
 
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [scrollSnaps, setScrollSnaps] = useState([]);
+  const [selectedIndex, setSelectedIndex] =
+    useState(0);
+
+  const [scrollSnaps, setScrollSnaps] =
+    useState([]);
 
   const onSelect = useCallback((api) => {
     if (api) {
-      setSelectedIndex(api.selectedScrollSnap());
+      setSelectedIndex(
+        api.selectedScrollSnap()
+      );
     }
   }, []);
 
@@ -62,7 +70,8 @@ export default function Carousel({
     }
 
     const updateCarousel = () => {
-      const snaps = emblaApi.scrollSnapList();
+      const snaps =
+        emblaApi.scrollSnapList();
 
       setScrollSnaps(
         Array.isArray(snaps) ? snaps : []
@@ -73,12 +82,26 @@ export default function Carousel({
 
     updateCarousel();
 
-    emblaApi.on('select', onSelect);
-    emblaApi.on('reInit', updateCarousel);
+    emblaApi.on(
+      'select',
+      onSelect
+    );
+
+    emblaApi.on(
+      'reInit',
+      updateCarousel
+    );
 
     return () => {
-      emblaApi.off('select', onSelect);
-      emblaApi.off('reInit', updateCarousel);
+      emblaApi.off(
+        'select',
+        onSelect
+      );
+
+      emblaApi.off(
+        'reInit',
+        updateCarousel
+      );
     };
   }, [emblaApi, onSelect]);
 
@@ -96,7 +119,7 @@ export default function Carousel({
         ref={emblaRef}
         className="overflow-hidden py-2"
       >
-        <div className="flex flex-nowrap gap-3">
+        <div className="flex flex-nowrap -mx-1.5">
           {items.map((item, index) => (
             <div
               key={
@@ -104,7 +127,7 @@ export default function Carousel({
                 item._id ??
                 index
               }
-              className={`${slideClassName} min-w-0 shrink-0`}
+              className={`${slideClassName} min-w-0 shrink-0 px-1.5`}
             >
               {renderItem(item, index)}
             </div>
@@ -115,26 +138,32 @@ export default function Carousel({
       {showDots &&
         scrollSnaps.length > 1 && (
           <div className="mt-4 flex items-center justify-center gap-2">
-            {scrollSnaps.map((_, index) => (
-              <button
-                key={index}
-                type="button"
-                onClick={() =>
-                  emblaApi?.scrollTo(index)
-                }
-                aria-label={`Go to slide ${index + 1}`}
-                aria-current={
-                  index === selectedIndex
-                    ? 'true'
-                    : undefined
-                }
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  index === selectedIndex
-                    ? 'w-5 bg-maroon'
-                    : 'w-1.5 bg-line'
-                }`}
-              />
-            ))}
+            {scrollSnaps.map(
+              (_, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() =>
+                    emblaApi?.scrollTo(index)
+                  }
+                  aria-label={`Go to slide ${
+                    index + 1
+                  }`}
+                  aria-current={
+                    index ===
+                    selectedIndex
+                      ? 'true'
+                      : undefined
+                  }
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    index ===
+                    selectedIndex
+                      ? 'w-5 bg-maroon'
+                      : 'w-1.5 bg-line'
+                  }`}
+                />
+              )
+            )}
           </div>
         )}
     </div>
