@@ -1,72 +1,42 @@
 import { CheckCircle2 } from 'lucide-react';
 import doctorPhoto from '../assets/images/doctor.jpg';
-import { CLINIC } from '../utils/constants';
-
-const HIGHLIGHTS = [
-  'MBBS (PMCH, Patna), MS (Obstetrics & Gynaecology)',
-  '25+ years of clinical experience; Former Senior Doctor, National Health Service (NHS), England',
-  'Personalised, patient-centred care for every stage of women’s health'
-];
+import { CLINIC, SITE_CONTENT } from '../utils/constants';
 
 export default function DoctorBio() {
+  const { doctor } = SITE_CONTENT;
+
   return (
-    <section
-      id="doctor"
-      className="scroll-mt-20 py-12 sm:py-14 lg:py-16 bg-cream"
-    >
-      <div className="max-w-6xl mx-auto px-5 sm:px-7 lg:px-10">
-        <div className="grid lg:grid-cols-[.72fr_1.28fr] gap-8 lg:gap-12 items-center max-w-5xl mx-auto">
-          <div className="group rounded-3xl overflow-hidden shadow-card aspect-[4/5] sm:aspect-[5/4] lg:aspect-[4/5] max-w-md mx-auto lg:max-w-none transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.01] hover:shadow-2xl">
-            <img
-              src={doctorPhoto}
-              alt={`${CLINIC.doctor} at Sunaina Clinic`}
-              className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
-            />
+    <section id="doctor" className="scroll-mt-20 bg-cream py-10 xs:py-12 sm:py-14 lg:py-16">
+      <div className="mx-auto w-full max-w-6xl px-4 xs:px-5 sm:px-7 lg:px-10">
+        <div className="mx-auto grid w-full max-w-5xl items-center gap-7 lg:grid-cols-[.72fr_1.28fr] lg:gap-12">
+          <div className="group mx-auto w-full max-w-sm overflow-hidden rounded-3xl shadow-card aspect-[4/5] sm:aspect-[5/4] lg:aspect-[4/5] lg:max-w-none transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.01] hover:shadow-2xl">
+            <img src={doctorPhoto} alt={`${CLINIC.doctor} at ${CLINIC.name}`} className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]" />
           </div>
 
-          <div className="text-center lg:text-left">
-            <p className="text-[9px] sm:text-[10px] font-semibold tracking-[0.12em] text-maroon uppercase mb-3">
-              Meet Your Doctor
+          <div className="min-w-0 text-center lg:text-left">
+            <p className="mb-3 text-[clamp(0.6rem,1.2vw,0.7rem)] font-semibold uppercase tracking-[0.12em] text-maroon">
+              {doctor.eyebrow}
             </p>
 
-            <h2 className="text-2xl sm:text-3xl font-semibold text-ink mb-4">
+            <h2 className="mb-4 text-[clamp(1.5rem,3vw,1.875rem)] font-semibold leading-tight text-ink">
               {CLINIC.doctor}
             </h2>
 
-            <p className="text-xs sm:text-sm text-muted leading-relaxed mb-5 max-w-2xl mx-auto lg:mx-0 text-justify">
-              With specialist training in obstetrics and gynaecology, Dr. Priyanka
-              brings together strong academic qualifications, including MBBS (PMCH,
-              Patna) and MS (Obs & Gynae), with professional experience as a Ex-Senior
-              Doctor with the National Health Service (NHS), England. Her 25+
-              years of Clinical experience have shaped a thoughtful, experienced and
-              personal approach to women&apos;s healthcare.
+            <p className="mx-auto mb-5 max-w-2xl text-justify text-[clamp(0.75rem,1.5vw,0.875rem)] leading-6 sm:leading-7 text-muted lg:mx-0">
+              {doctor.paragraphOne}
             </p>
 
-            <p className="text-xs sm:text-sm text-muted leading-relaxed mb-6 max-w-2xl mx-auto lg:mx-0 text-justify">
-              From pregnancy and fertility concerns to PCOS, gynaecological health
-              and ongoing women&apos;s wellness, every consultation is centred around
-              clear guidance, informed decisions and care that recognises each
-              patient&apos;s individual needs. With extensive clinical experience
-              across different stages of women&apos;s health, Dr. Priyanka is
-              committed to providing personalised, patient-centred care in a
-              comfortable and supportive environment.
+            <p className="mx-auto mb-6 max-w-2xl text-justify text-[clamp(0.75rem,1.5vw,0.875rem)] leading-6 sm:leading-7 text-muted lg:mx-0">
+              {doctor.paragraphTwo}
             </p>
 
-            <ul className="space-y-3 inline-block text-left">
-              {HIGHLIGHTS.map((item) => (
-                <li
-                  key={item}
-                  className="flex items-center gap-3 text-[11px] sm:text-xs text-muted"
-                >
-                  <span className="w-8 h-8 rounded-full bg-blush flex items-center justify-center text-maroon shrink-0">
-                    <CheckCircle2
-                      size={16}
-                      strokeWidth={1.8}
-                      aria-hidden="true"
-                    />
+            <ul className="mx-auto inline-flex max-w-full flex-col space-y-3 text-left">
+              {doctor.highlights.map((item) => (
+                <li key={item} className="flex items-start gap-3 text-[clamp(0.7rem,1.4vw,0.75rem)] text-muted">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blush text-maroon">
+                    <CheckCircle2 size={16} strokeWidth={1.8} aria-hidden="true" />
                   </span>
-
-                  <span>{item}</span>
+                  <span className="pt-1 leading-relaxed">{item}</span>
                 </li>
               ))}
             </ul>

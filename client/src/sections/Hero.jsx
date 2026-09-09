@@ -1,92 +1,58 @@
 import { useState } from 'react';
 import { MapPin, Clock, Phone, Check } from 'lucide-react';
 import doctorPhoto from '../assets/images/doctor.jpg';
-import { CLINIC, DIRECTIONS_URL } from '../utils/constants';
+import { CLINIC, DIRECTIONS_URL, SITE_CONTENT } from '../utils/constants';
 import ContactPopup from '../components/ContactPopup';
 
 export default function Hero() {
   const [showContact, setShowContact] = useState(false);
+  const { hero } = SITE_CONTENT;
 
   return (
     <section id="home" className="scroll-mt-20 overflow-hidden">
-      <div className="max-w-6xl mx-auto px-5 sm:px-7 lg:px-10 pt-4 sm:pt-5 lg:pt-6 pb-6 sm:pb-7 lg:pb-8">
-        <div className="grid lg:grid-cols-[1.05fr_.95fr] gap-7 lg:gap-10 items-center">
-          <div className="text-center lg:text-left max-w-xl mx-auto lg:mx-0">
-            <p className="text-[9px] sm:text-[10px] font-semibold tracking-[0.12em] text-maroon uppercase mb-3">
-              Experienced Care, Shaped by Global Standards
+      <div className="mx-auto w-full max-w-6xl px-4 pb-6 pt-4 xs:px-5 sm:px-7 sm:pb-7 sm:pt-5 lg:px-10 lg:pb-8 lg:pt-6">
+        <div className="grid items-center gap-7 lg:grid-cols-[1.05fr_.95fr] lg:gap-10">
+          <div className="mx-auto w-full max-w-xl text-center lg:mx-0 lg:text-left">
+            <p className="mb-3 text-[clamp(0.58rem,1.5vw,0.625rem)] font-semibold uppercase tracking-[0.12em] text-maroon">
+              {hero.eyebrow}
             </p>
 
-            <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-bold text-ink leading-[1.13] mb-4">
-              25+ Years of Experience,{' '}
-                Ex-Senior Doctor,
-              {' '}
-              NHS England
+            <h1 className="mb-4 text-[clamp(1.75rem,7vw,2.625rem)] font-bold leading-[1.12] text-ink">
+              {hero.title}<br/>
+              {hero.titleEmphasis}{' '}
+              {hero.titleSuffix}
             </h1>
 
-            <p className="text-muted text-sm sm:text-[15px] leading-relaxed mb-6 max-w-lg mx-auto lg:mx-0">
-              Expert care for women at every stage of life. Obs & Gyn care by
-              Dr. Priyanka Singh (MBBS, PMCH | MS (Obs & Gyn)). Bringing
-              international clinical standards home to Ranchi.
+            <p className="mx-auto mb-6 max-w-lg text-[clamp(0.78rem,2vw,0.9375rem)] leading-relaxed text-muted lg:mx-0">
+              {hero.description}
             </p>
 
-            <div className="w-full max-w-[360px] mx-auto md:mx-0">
-              {/*
-              <Link
-                to="/appointment"
-                className="flex items-center justify-center w-full bg-maroon text-white text-xs font-semibold px-4 py-2.5 rounded-full transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-lg"
-              >
-                Book an Appointment
-              </Link>
-              */}
-
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowContact(true)}
-                  className="inline-flex items-center justify-center gap-2 bg-maroon text-white text-xs font-semibold px-3 py-2.5 rounded-full transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-lg"
-                >
+            <div className="mx-auto w-full max-w-[360px] lg:mx-0">
+              <div className="grid grid-cols-1 gap-3 xs:grid-cols-2">
+                <button type="button" onClick={() => setShowContact(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-maroon px-3 text-[clamp(0.7rem,1.8vw,0.75rem)] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-lg">
                   <Phone size={16} />
-                  Contact Us
+                  {hero.contact}
                 </button>
-
-                <a
-                  href={DIRECTIONS_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center bg-white border border-line text-ink text-xs font-semibold px-3 py-2.5 rounded-full transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-md"
-                >
-                  Get Directions
+                <a href={DIRECTIONS_URL} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-line bg-white px-3 text-[clamp(0.7rem,1.8vw,0.75rem)] font-semibold text-ink transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-md">
+                  <MapPin size={16} />
+                  {hero.directions}
                 </a>
               </div>
             </div>
           </div>
 
-          <div className="relative flex justify-center lg:justify-end pb-4 sm:pb-5">
-            <div className="group rounded-3xl overflow-hidden shadow-card aspect-[5/6] sm:aspect-[4/3] lg:aspect-square max-w-md mx-auto lg:max-w-none transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.01] hover:shadow-2xl">
-              <img
-                src={doctorPhoto}
-                alt="Dr. Priyanka Singh at Sunaina Clinic"
-                className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
-              />
+          <div className="relative flex justify-center pb-4 sm:pb-5 lg:justify-end">
+            <div className="group mx-auto aspect-[4/5] w-full max-w-sm overflow-hidden rounded-3xl shadow-card transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.01] hover:shadow-2xl sm:aspect-[4/3] lg:mx-0 lg:aspect-square lg:max-w-none">
+              <img src={doctorPhoto} alt={`${CLINIC.doctor} at ${CLINIC.name}`} className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]" />
             </div>
 
-            <div className="absolute left-1/2 -translate-x-1/2 bottom-1 sm:bottom-2 lg:bottom-3 min-w-[230px] sm:min-w-[250px] bg-white rounded-xl shadow-card border border-line px-3.5 py-2.5 flex items-center gap-2.5">
-              <span className="w-8 h-8 rounded-full bg-blush flex items-center justify-center text-maroon shrink-0">
-                <Check
-                  size={16}
-                  strokeWidth={2.2}
-                  aria-hidden="true"
-                />
+            <div className="absolute bottom-1 left-1/2 flex w-[calc(100%-2rem)] max-w-[250px] -translate-x-1/2 items-center gap-2.5 rounded-xl border border-line bg-white px-3 py-2.5 shadow-card sm:bottom-2">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blush text-maroon">
+                <Check size={16} strokeWidth={2.2} aria-hidden="true" />
               </span>
-
-              <div className="leading-tight text-left">
-                <p className="text-xs font-semibold text-ink">
-                  {CLINIC.doctor}
-                </p>
-
-                <p className="text-[10px] text-muted">
-                  Specialized in Obstetrics
-                </p>
+              <div className="min-w-0 text-left leading-tight">
+                <p className="truncate text-[clamp(0.68rem,1.6vw,0.75rem)] font-semibold text-ink">{CLINIC.doctor}</p>
+                <p className="text-[clamp(0.58rem,1.4vw,0.625rem)] text-muted">{hero.doctorSpeciality}</p>
               </div>
             </div>
           </div>
@@ -94,86 +60,41 @@ export default function Hero() {
       </div>
 
       <div className="border-y border-line bg-white">
-        <div className="max-w-6xl mx-auto px-5 sm:px-7 lg:px-10 py-6">
+        <div className="mx-auto w-full max-w-6xl px-4 py-6 xs:px-5 sm:px-7 lg:px-10">
           <div className="grid gap-5 sm:grid-cols-3">
-            <Info icon={MapPin} title="Visit Sunaina Clinic">
-              <p className="text-[11px] sm:text-xs text-muted leading-relaxed max-w-[280px]">
-                301 C, 3rd Floor, Sri Sai Tower
-                <br />
-                Burdwan Compound, P&amp;T Colony
-                <br />
-                Lalpur, Ranchi, Jharkhand
+            <Info icon={MapPin} title={hero.visitTitle}>
+              <p className="max-w-[280px] text-[clamp(0.68rem,1.5vw,0.75rem)] leading-relaxed text-muted">
+                {CLINIC.address.lines.map((line) => <span key={line} className="block">{line}</span>)}
               </p>
-
-              <a
-                href={DIRECTIONS_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center mt-2 text-[11px] sm:text-xs font-semibold text-maroon transition-all duration-200 hover:underline"
-              >
-                Get Directions →
-              </a>
+              <a href={DIRECTIONS_URL} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex text-[clamp(0.68rem,1.5vw,0.75rem)] font-semibold text-maroon hover:underline">{hero.directionsLink}</a>
             </Info>
 
-            <Info
-              icon={Clock}
-              title="Consultation Hours"
-              className="sm:border-l sm:border-line sm:pl-6"
-            >
-              <p className="text-[11px] sm:text-xs font-medium text-ink">
-                {CLINIC.workingHours}
-              </p>
-
-              {CLINIC.hoursNote && (
-                <p className="text-[10px] sm:text-[11px] text-muted mt-1">
-                  {CLINIC.hoursNote}
-                </p>
-              )}
+            <Info icon={Clock} title={hero.hoursTitle} className="sm:border-l sm:border-line sm:pl-6">
+              <p className="text-[clamp(0.68rem,1.5vw,0.75rem)] font-medium text-ink">{CLINIC.workingHours}</p>
+              <p className="mt-1 text-[clamp(0.62rem,1.4vw,0.6875rem)] text-muted">{CLINIC.hoursNote}</p>
             </Info>
 
-            <Info
-              icon={Phone}
-              title="Speak With Our Team"
-              className="sm:border-l sm:border-line sm:pl-6"
-            >
-              <p className="text-[11px] sm:text-xs text-muted leading-relaxed">
-                For appointments, enquiries and clinic information.
-              </p>
-
-              <a
-                href={CLINIC.phoneHref}
-                className="inline-flex mt-2 text-[11px] sm:text-xs font-semibold text-maroon hover:underline"
-              >
-                {CLINIC.phone}
-              </a>
+            <Info icon={Phone} title={hero.teamTitle} className="sm:border-l sm:border-line sm:pl-6">
+              <p className="text-[clamp(0.68rem,1.5vw,0.75rem)] leading-relaxed text-muted">{hero.teamDescription}</p>
+              <button type="button" onClick={() => setShowContact(true)} className="mt-2 inline-flex text-[clamp(0.68rem,1.5vw,0.75rem)] font-semibold text-maroon hover:underline">{CLINIC.phone}</button>
             </Info>
           </div>
         </div>
       </div>
 
-      {showContact && (
-        <ContactPopup onClose={() => setShowContact(false)} />
-      )}
+      {showContact && <ContactPopup onClose={() => setShowContact(false)} />}
     </section>
   );
 }
 
 function Info({ icon: Icon, title, children, className = '' }) {
   return (
-    <div className={`flex items-start gap-3 min-w-0 ${className}`}>
-      <span className="w-10 h-10 rounded-full bg-blush flex items-center justify-center text-maroon shrink-0">
-        <Icon
-          size={18}
-          strokeWidth={1.8}
-          aria-hidden="true"
-        />
+    <div className={`flex min-w-0 items-start gap-3 ${className}`}>
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blush text-maroon">
+        <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
       </span>
-
       <div className="min-w-0 pt-0.5">
-        <p className="text-xs sm:text-sm font-semibold text-ink mb-1.5">
-          {title}
-        </p>
-
+        <p className="mb-1.5 text-[clamp(0.72rem,1.8vw,0.875rem)] font-semibold text-ink">{title}</p>
         {children}
       </div>
     </div>

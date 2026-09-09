@@ -2,6 +2,7 @@ import express from 'express';
 import {
   requestCallback,
 } from '../controllers/contactController.js';
+
 import {
   contactValidationRules,
   handleContactValidationErrors,
