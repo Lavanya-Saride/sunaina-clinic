@@ -273,7 +273,7 @@ export default function ContactPopup({
           role="dialog"
           aria-modal="true"
           aria-labelledby="contact-popup-title"
-          className="relative max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl bg-white shadow-2xl sm:max-h-[92vh]"
+          className="relative max-h-[calc(100dvh_-_2rem)] w-full max-w-md overflow-y-auto rounded-2xl bg-white shadow-2xl sm:max-h-[92vh]"
         >
           <button
             type="button"

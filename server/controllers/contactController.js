@@ -16,6 +16,7 @@ export async function requestCallback(req, res, next) {
       await sendCallbackRequest({
         name,
         phone,
+        idempotencyKey: `callback-${callbackRequest._id.toString()}`,
       });
     } catch (emailError) {
       console.error('CALLBACK EMAIL ERROR:', {

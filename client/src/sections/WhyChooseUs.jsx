@@ -38,7 +38,7 @@ export default function WhyChooseUs() {
             autoplayDelay={4500}
             showDots
             loop
-            slideClassName="flex-[0_0_100%] sm:flex-[0_0_calc((100%_-_1rem)/2)]"
+            slideClassName="flex-[0_0_100%] sm:flex-[0_0_50%]"
             renderItem={(item) => <ReasonCard {...item} />}
           />
         </div>

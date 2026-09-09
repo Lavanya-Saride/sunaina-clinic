@@ -95,44 +95,24 @@ export default function PatientFeedback() {
 
         {status === 'success' &&
           data.length > 0 && (
-            <>
-              <div className="lg:hidden">
-                <Carousel
-                  items={feedbackItems}
-                  ariaLabel={
-                    feedback.ariaLabel
-                  }
-                  autoplayDelay={
-                    feedback.autoplayDelay
-                  }
-                  showDots
-                  loop
-                  slideClassName="flex-[0_0_100%] sm:flex-[0_0_calc((100%-0.75rem)/2)]"
-                  renderItem={(item) => (
-                    <FeedbackCard
-                      name={item.name}
-                      story={item.story}
-                    />
-                  )}
+            <Carousel
+              items={feedbackItems}
+              ariaLabel={
+                feedback.ariaLabel
+              }
+              autoplayDelay={
+                feedback.autoplayDelay
+              }
+              showDots
+              loop={feedbackItems.length > 3}
+              slideClassName="flex-[0_0_100%] sm:flex-[0_0_calc((100%_-_0.75rem)/2)] lg:flex-[0_0_calc((100%_-_1.5rem)/3)]"
+              renderItem={(item) => (
+                <FeedbackCard
+                  name={item.name}
+                  story={item.story}
                 />
-              </div>
-
-              <div className="hidden lg:grid lg:grid-cols-3 lg:gap-4">
-                {feedbackItems.map(
-                  (item, index) => (
-                    <FeedbackCard
-                      key={
-                        item.id ??
-                        item._id ??
-                        index
-                      }
-                      name={item.name}
-                      story={item.story}
-                    />
-                  )
-                )}
-              </div>
-            </>
+              )}
+            />
           )}
       </div>
     </section>

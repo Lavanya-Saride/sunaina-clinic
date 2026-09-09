@@ -140,6 +140,13 @@ async function start() {
   }
 }
 
-start();
+// Only auto-connect + listen when this file is executed directly
+// (e.g. `node server.js`, `npm start`, `npm run dev`). When the module is
+// imported instead (e.g. by an automated test importing `app`), this is
+// skipped so tests can exercise routes with a mocked DB layer without
+// triggering a real MongoDB connection attempt or `process.exit(1)`.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  start();
+}
 
 export default app;

@@ -35,7 +35,7 @@ export default function Specialities() {
             autoplayDelay={3500}
             showDots
             loop
-            slideClassName="flex-[0_0_calc((100%-0.75rem)/2)] sm:flex-[0_0_calc((100%-0.75rem)/2)] md:flex-[0_0_calc((100%-1.5rem)/3)]"
+            slideClassName="flex-[0_0_50%] md:flex-[0_0_33.3333%]"
             renderItem={(item) => <SpecialityCard {...item} />}
           />
         </div>

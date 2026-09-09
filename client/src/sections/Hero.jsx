@@ -46,7 +46,7 @@ export default function Hero() {
               <img src={doctorPhoto} alt={`${CLINIC.doctor} at ${CLINIC.name}`} className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]" />
             </div>
 
-            <div className="absolute bottom-1 left-1/2 flex w-[calc(100%-2rem)] max-w-[250px] -translate-x-1/2 items-center gap-2.5 rounded-xl border border-line bg-white px-3 py-2.5 shadow-card sm:bottom-2">
+            <div className="absolute bottom-1 left-1/2 flex w-[calc(100%_-_2rem)] max-w-[250px] -translate-x-1/2 items-center gap-2.5 rounded-xl border border-line bg-white px-3 py-2.5 shadow-card sm:bottom-2">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blush text-maroon">
                 <Check size={16} strokeWidth={2.2} aria-hidden="true" />
               </span>
