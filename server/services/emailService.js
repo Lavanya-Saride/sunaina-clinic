@@ -1,59 +1,42 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
-let transporter = null;
+let resendClient = null;
 
-function getTransporter() {
-  if (transporter) {
-    return transporter;
+function getResendClient() {
+  if (resendClient) {
+    return resendClient;
   }
 
-  if (
-    !process.env.SMTP_HOST ||
-    !process.env.SMTP_PORT ||
-    !process.env.SMTP_USER ||
-    !process.env.SMTP_PASSWORD
-  ) {
-    return null;
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+
+  if (!apiKey) {
+    throw new Error('RESEND_API_KEY is not configured.');
   }
 
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASSWORD,
-    },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
-  });
+  resendClient = new Resend(apiKey);
 
-  return transporter;
+  return resendClient;
 }
 
 export async function sendCallbackRequest({ name, phone }) {
-  const mailTransporter = getTransporter();
+  const from = process.env.RESEND_FROM?.trim();
+  const to = process.env.CLINIC_EMAIL?.trim();
 
-  if (!mailTransporter) {
-    console.error('SMTP configuration is incomplete.');
-    return false;
+  if (!from) {
+    throw new Error('RESEND_FROM is not configured.');
   }
 
-  if (!process.env.SMTP_FROM || !process.env.CLINIC_EMAIL) {
-    console.error(
-      'SMTP_FROM or CLINIC_EMAIL is not configured.'
-    );
-
-    return false;
+  if (!to) {
+    throw new Error('CLINIC_EMAIL is not configured.');
   }
+
+  const resend = getResendClient();
 
   try {
-    await mailTransporter.sendMail({
-      from: process.env.SMTP_FROM,
-      to: process.env.CLINIC_EMAIL,
+    const { data, error } = await resend.emails.send({
+      from,
+      to: [to],
       subject: 'After-Hours Callback Request - Sunaina Clinic',
-
       text: `
 A patient has requested a callback.
 
@@ -64,7 +47,6 @@ Please contact the patient during clinic hours.
 
 This request was submitted through the Sunaina Clinic website.
       `.trim(),
-
       html: `
         <h2>After-Hours Callback Request</h2>
 
@@ -85,14 +67,28 @@ This request was submitted through the Sunaina Clinic website.
       `,
     });
 
-    return true;
+    if (error) {
+      console.error('CALLBACK EMAIL ERROR:', error);
+      throw new Error(
+        error.message || 'Unable to send callback email.'
+      );
+    }
+
+    if (!data?.id) {
+      throw new Error('Resend did not return an email ID.');
+    }
+
+    console.log('CALLBACK EMAIL SENT:', data.id);
+
+    return data;
   } catch (error) {
     console.error('CALLBACK EMAIL ERROR:', {
       message: error.message,
       name: error.name,
       code: error.code,
+      statusCode: error.statusCode,
     });
 
-    return false;
+    throw error;
   }
 }

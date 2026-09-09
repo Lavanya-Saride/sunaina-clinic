@@ -11,6 +11,7 @@ import {
   handleAppointmentValidationErrors,
   rejectUnknownAppointmentFields,
 } from '../middleware/appointmentValidator.js';
+import { submitAppointmentLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
 
@@ -23,6 +24,7 @@ router.get(
 
 router.post(
   '/',
+  submitAppointmentLimiter,
   rejectUnknownAppointmentFields,
   appointmentValidationRules,
   handleAppointmentValidationErrors,

@@ -1,11 +1,16 @@
 import rateLimit from 'express-rate-limit';
+
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 200,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, message: 'Too many requests. Please try again later.' },
+  message: {
+    success: false,
+    message: 'Too many requests. Please try again later.',
+  },
 });
+
 export const submitFeedbackLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 5,
@@ -13,6 +18,31 @@ export const submitFeedbackLimiter = rateLimit({
   legacyHeaders: false,
   message: {
     success: false,
-    message: 'Too many feedback submissions from this device. Please try again later.',
+    message:
+      'Too many feedback submissions from this device. Please try again later.',
+  },
+});
+
+export const submitAppointmentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message:
+      'Too many appointment requests from this device. Please try again later.',
+  },
+});
+
+export const submitCallbackLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message:
+      'Too many callback requests from this device. Please try again later.',
   },
 });

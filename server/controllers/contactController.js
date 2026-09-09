@@ -12,16 +12,29 @@ export async function requestCallback(req, res, next) {
       phone,
     });
 
-    sendCallbackRequest({
-      name,
-      phone,
-    }).catch((error) => {
-      console.error('CALLBACK EMAIL ERROR:', {
-        message: error.message,
-        name: error.name,
-        code: error.code,
+    try {
+      await sendCallbackRequest({
+        name,
+        phone,
       });
-    });
+    } catch (emailError) {
+      console.error('CALLBACK EMAIL ERROR:', {
+        message: emailError.message,
+        name: emailError.name,
+        code: emailError.code,
+        statusCode: emailError.statusCode,
+      });
+
+      return res.status(503).json({
+        success: false,
+        message:
+          'Unable to submit your request. Please try again.',
+        data: {
+          id: callbackRequest._id,
+          createdAt: callbackRequest.createdAt,
+        },
+      });
+    }
 
     return res.status(201).json({
       success: true,
