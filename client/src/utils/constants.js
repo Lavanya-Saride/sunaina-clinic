@@ -26,7 +26,7 @@ export const SITE_CONTENT = {
     titleEmphasis: 'Ex-Senior Doctor,',
     titleSuffix: 'NHS England',
     description:
-      "With over 25 years of global experience, former NHS England Senior Doctor Dr. Priyanka Singh, MBBS (PMCH Patna) · MS in Obstetrics & Gynaecology, provides expert, personalized care for every stage of a woman's life.",
+      "With over 25 years of global experience, former NHS England Senior Doctor Dr. Priyanka Singh, MBBS (PMCH Patna) · MS (Obstetrics & Gynaecology), provides expert, personalized care for every stage of a woman's life.",
     contact: 'Contact Us',
     directions: 'Get Directions',
     directionsLink: 'Get Directions →',
