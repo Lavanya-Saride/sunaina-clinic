@@ -11,10 +11,6 @@ import {
   submitCallbackLimiter,
 } from '../middleware/rateLimiter.js';
 
-// Walks an Express router's internal stack and returns the middleware
-// functions registered for a given method+path, so we can assert the
-// *actual* limiter instance (by reference) is present — proving it's wired
-// into the route, not merely imported/exported unused.
 function middlewareFor(router, method, path) {
   const layer = router.stack.find(
     (l) => l.route && l.route.path === path && l.route.methods[method]

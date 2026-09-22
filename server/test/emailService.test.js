@@ -1,9 +1,6 @@
 import { test, describe, mock, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
-// This suite NEVER makes a real network call to Resend. The 'resend'
-// package is fully mocked via node:test's module mocking, per the project
-// requirement that automated tests must not hit real external services.
 
 const ORIGINAL_ENV = { ...process.env };
 

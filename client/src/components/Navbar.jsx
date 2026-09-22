@@ -31,7 +31,7 @@ export default function Navbar() {
               {NAV_LINKS.map((link) => <a key={link.href} href={`/${link.href}`} className="whitespace-nowrap py-1 text-[clamp(0.6rem,1.2vw,0.75rem)] font-medium uppercase tracking-[0.1em] text-ink/80 transition hover:text-maroon">{link.label}</a>)}
             </nav>
 
-            <button type="button" onClick={() => setShowContact(true)} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-full bg-maroon px-3 text-[clamp(0.65rem,1.8vw,0.875rem)] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.03] hover:shadow-lg xs:gap-2 xs:px-4 sm:px-5">
+            <button type="button" onClick={() => setShowContact(true)} className="inline-flex min-h-9 min-w-[112px] shrink-0 items-center justify-center gap-1.5 rounded-full bg-maroon px-4 text-[clamp(0.65rem,1.8vw,0.875rem)] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.03] hover:shadow-lg xs:min-w-[120px] xs:gap-2 xs:px-4 sm:min-h-10 sm:min-w-[128px] sm:px-5">
               <Phone size={15} />
               {SITE_CONTENT.hero.contact}
             </button>

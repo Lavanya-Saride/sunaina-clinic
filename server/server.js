@@ -8,6 +8,7 @@ import connectDB from './config/db.js';
 import feedbackRoutes from './routes/feedbackRoutes.js';
 import healthRoutes from './routes/healthRoutes.js';
 import appointmentRoutes from './routes/appointmentRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
 import contactRoutes from './routes/contactRoutes.js';
 
 import {
@@ -96,12 +97,15 @@ app.use(
   })
 );
 
-app.use(
-  express.json({
-    limit: '10kb',
-    strict: true,
-  })
-);
+app.use(express.json({
+  limit: '10kb',
+  strict: true,
+  verify(req, res, buffer) {
+    if (req.originalUrl === '/api/payment/webhook') {
+      req.rawBody = Buffer.from(buffer);
+    }
+  },
+}));
 
 app.use('/api', apiLimiter);
 
@@ -110,6 +114,8 @@ app.use('/api/health', healthRoutes);
 app.use('/api/feedback', feedbackRoutes);
 
 app.use('/api/appointment', appointmentRoutes);
+
+app.use('/api/payment', paymentRoutes);
 
 app.use('/api/contact', contactRoutes);
 
@@ -140,11 +146,6 @@ async function start() {
   }
 }
 
-// Only auto-connect + listen when this file is executed directly
-// (e.g. `node server.js`, `npm start`, `npm run dev`). When the module is
-// imported instead (e.g. by an automated test importing `app`), this is
-// skipped so tests can exercise routes with a mocked DB layer without
-// triggering a real MongoDB connection attempt or `process.exit(1)`.
 if (import.meta.url === `file://${process.argv[1]}`) {
   start();
 }

@@ -2,10 +2,6 @@ import { test, describe, before } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
 
-// Pin CLIENT_URL before server.js's `import 'dotenv/config'` runs, so this
-// test's CORS expectations don't depend on whatever is in the local .env.
-// dotenv does not overwrite variables that are already set, so this value
-// wins.
 process.env.CLIENT_URL =
   'http://localhost:5173,https://sunaina-clinic.vercel.app';
 process.env.NODE_ENV = 'test';
@@ -22,7 +18,7 @@ describe('GET /api/health', () => {
     assert.equal(res.status, 200);
     assert.equal(res.body.success, true);
     assert.ok(['connected', 'disconnected'].includes(res.body.database));
-    assert.equal(res.text.includes('at '), false); // no stack trace leakage
+    assert.equal(res.text.includes('at '), false);
   });
 });
 

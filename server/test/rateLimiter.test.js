@@ -10,8 +10,6 @@ import {
   submitCallbackLimiter,
 } from '../middleware/rateLimiter.js';
 
-// Each limiter is mounted on its own tiny throwaway app so requests in one
-// test can't bleed into another test's rate-limit window/counter.
 function appWithLimiter(limiter) {
   const app = express();
   app.get('/x', limiter, (req, res) => res.status(200).json({ ok: true }));
@@ -21,7 +19,6 @@ function appWithLimiter(limiter) {
 async function fireRequests(app, count) {
   const responses = [];
   for (let i = 0; i < count; i += 1) {
-    // eslint-disable-next-line no-await-in-loop
     responses.push(await request(app).get('/x'));
   }
   return responses;

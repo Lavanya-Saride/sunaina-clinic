@@ -1,8 +1,6 @@
 import { test, describe, mock, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
-// No real MongoDB or Resend calls happen in this suite — both the model and
-// the email service are mocked at the module level.
 
 function makeRes() {
   const res = {
@@ -61,8 +59,6 @@ describe('contactController.requestCallback', () => {
     assert.equal(res.body.success, true);
     assert.equal(res.body.data.id, 'cb_1');
 
-    // The email is requested with an idempotency key derived from the saved
-    // callback's own id, so retries never double-send for the same request.
     assert.equal(emailCalls.length, 1);
     assert.equal(emailCalls[0].idempotencyKey, 'callback-cb_1');
     assert.equal(emailCalls[0].name, 'Asha Verma');
@@ -98,9 +94,6 @@ describe('contactController.requestCallback', () => {
 
     await requestCallback(req, res, next);
 
-    // Critical requirement: DB save must succeed and be reported, even
-    // though the email failed — the request is never lost, and success is
-    // never falsely reported.
     assert.equal(res.statusCode, 503);
     assert.equal(res.body.success, false);
     assert.equal(res.body.data.id, 'cb_2');

@@ -1,11 +1,48 @@
+import { randomBytes } from 'node:crypto';
 import Appointment from '../models/Appointment.js';
+import { PAYMENT_HOLD_MINUTES, getConsultationFee } from '../config/appointmentConfig.js';
+import { sanitizePlainText } from '../utils/sanitize.js';
+import Payment from '../models/Payment.js';
+import { createRazorpayOrder, fetchRazorpayOrder, getRazorpayKeyId } from '../services/razorpayService.js';
+
+function generateAppointmentNumber(appointmentDate) {
+  const compactDate = appointmentDate.replace(/-/g, '');
+  const suffix = randomBytes(3).toString('hex').toUpperCase();
+  return `SC${compactDate}${suffix}`;
+}
 
 export const getBookedSlots = async (req, res, next) => {
   try {
     const { date } = req.query;
+    const now = new Date();
+
+    const expiredAppointments = await Appointment.find({
+      appointmentDate: date,
+      status: 'PENDING_PAYMENT',
+      holdExpiresAt: { $lte: now },
+    }).select('_id paymentOrderId').lean();
+
+    for (const expired of expiredAppointments) {
+      if (!expired.paymentOrderId) {
+        await Appointment.deleteOne({ _id: expired._id });
+        continue;
+      }
+
+      try {
+        const order = await fetchRazorpayOrder(expired.paymentOrderId);
+        if (order?.status === 'paid') continue;
+        await Appointment.deleteOne({ _id: expired._id, status: 'PENDING_PAYMENT' });
+      } catch {
+        continue;
+      }
+    }
 
     const appointments = await Appointment.find({
       appointmentDate: date,
+      $or: [
+        { status: { $in: ['CONFIRMED', 'COMPLETED', 'NO_SHOW'] } },
+        { status: 'PENDING_PAYMENT', holdExpiresAt: { $gt: now } },
+      ],
     })
       .select('timeSlot -_id')
       .lean();
@@ -15,89 +52,130 @@ export const getBookedSlots = async (req, res, next) => {
       data: appointments.map(({ timeSlot }) => timeSlot),
     });
   } catch (error) {
-    console.error('GET BOOKED SLOTS ERROR:', {
-      message: error.message,
-      name: error.name,
-      code: error.code,
-      stack: error.stack,
-    });
-
     next(error);
   }
 };
 
-export const createAppointment = async (req, res, next) => {
+export const createAppointmentOrder = async (req, res, next) => {
+  let appointment = null;
+
   try {
     const {
       appointmentDate,
       timeSlot,
+      consultationType,
       fullName,
       phoneNumber,
-      email = '',
+      email,
     } = req.body;
 
-    console.log('Creating appointment request');
+    const now = new Date();
 
-    const existingAppointment = await Appointment.findOne({
+    const expiredAppointment = await Appointment.findOne({
       appointmentDate,
       timeSlot,
-    })
-      .select('_id')
-      .lean();
+      status: 'PENDING_PAYMENT',
+      holdExpiresAt: { $lte: now },
+    }).select('_id paymentOrderId').lean();
 
-    if (existingAppointment) {
+    if (expiredAppointment) {
+      if (!expiredAppointment.paymentOrderId) {
+        await Appointment.deleteOne({ _id: expiredAppointment._id });
+      } else {
+        try {
+          const order = await fetchRazorpayOrder(expiredAppointment.paymentOrderId);
+          if (order?.status !== 'paid') {
+            await Appointment.deleteOne({ _id: expiredAppointment._id, status: 'PENDING_PAYMENT' });
+          }
+        } catch {
+          return res.status(503).json({
+            success: false,
+            message: 'Unable to verify the selected time slot. Please try again.',
+          });
+        }
+      }
+    }
+
+    const activeAppointment = await Appointment.findOne({
+      appointmentDate,
+      timeSlot,
+      $or: [
+        { status: { $in: ['CONFIRMED', 'COMPLETED', 'NO_SHOW'] } },
+        { status: 'PENDING_PAYMENT', holdExpiresAt: { $gt: now } },
+      ],
+    }).select('_id').lean();
+
+    if (activeAppointment) {
       return res.status(409).json({
         success: false,
-        message:
-          'This time slot has already been booked. Please select another time.',
+        message: 'This time slot has already been booked. Please select another time.',
       });
     }
 
-    const appointment = await Appointment.create({
+    const fee = getConsultationFee(consultationType);
+
+    appointment = await Appointment.create({
+      appointmentNumber: generateAppointmentNumber(appointmentDate),
       appointmentDate,
       timeSlot,
-      fullName: fullName.trim(),
-      phoneNumber: phoneNumber.trim(),
-      email: email.trim().toLowerCase(),
+      consultationType,
+      fullName: sanitizePlainText(fullName),
+      phoneNumber: sanitizePlainText(phoneNumber),
+      email: sanitizePlainText(email).toLowerCase(),
+      fee,
+      currency: 'INR',
+      status: 'PENDING_PAYMENT',
+      paymentStatus: 'CREATED',
+      holdExpiresAt: new Date(Date.now() + PAYMENT_HOLD_MINUTES * 60 * 1000),
+      meetingStatus: consultationType === 'virtual' ? 'PENDING' : 'NOT_REQUIRED',
     });
 
-    console.log(
-      'APPOINTMENT CREATED:',
-      appointment._id.toString()
-    );
+    const receipt = `SC${appointment._id.toString().slice(-20)}`;
+    const order = await createRazorpayOrder({
+      amount: fee,
+      receipt,
+    });
+
+    appointment.paymentOrderId = order.id;
+    appointment.paymentStatus = 'PENDING';
+    await appointment.save();
+
+    const payment = await Payment.create({
+      appointmentId: appointment._id,
+      providerOrderId: order.id,
+      amount: fee,
+      currency: 'INR',
+      status: 'CREATED',
+    });
 
     return res.status(201).json({
       success: true,
-      message: 'Appointment request submitted successfully.',
       data: {
-        id: appointment._id,
-        appointmentDate: appointment.appointmentDate,
+        appointmentId: appointment._id,
+        appointmentNumber: appointment.appointmentNumber,
         timeSlot: appointment.timeSlot,
-        fullName: appointment.fullName,
-        email: appointment.email,
-        phoneNumber: appointment.phoneNumber,
-        createdAt: appointment.createdAt,
+        orderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        keyId: getRazorpayKeyId(),
+        holdExpiresAt: appointment.holdExpiresAt,
+        paymentId: payment._id,
       },
     });
   } catch (error) {
-    console.error('CREATE APPOINTMENT ERROR:', {
-      message: error.message,
-      name: error.name,
-      code: error.code,
-      keyPattern: error.keyPattern,
-      keyValue: error.keyValue,
-      errors: error.errors,
-      stack: error.stack,
-    });
+    if (appointment?._id) {
+      await Appointment.deleteOne({ _id: appointment._id }).catch(() => {});
+    }
 
     if (error?.code === 11000) {
       return res.status(409).json({
         success: false,
-        message:
-          'This time slot has already been booked. Please select another time.',
+        message: 'This time slot has already been booked. Please select another time.',
       });
     }
 
     next(error);
   }
 };
+
+export const createAppointment = createAppointmentOrder;

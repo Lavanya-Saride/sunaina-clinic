@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { MapPin, Clock, Phone, Check } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { MapPin, Clock, Phone, Check, CalendarDays, Video } from 'lucide-react';
 import doctorPhoto from '../assets/images/doctor.jpg';
 import { CLINIC, DIRECTIONS_URL, SITE_CONTENT } from '../utils/constants';
 import ContactPopup from '../components/ContactPopup';
@@ -10,43 +11,48 @@ export default function Hero() {
 
   return (
     <section id="home" className="scroll-mt-20 overflow-hidden">
-      <div className="mx-auto w-full max-w-6xl px-4 pb-6 pt-4 xs:px-5 sm:px-7 sm:pb-7 sm:pt-5 lg:px-10 lg:pb-8 lg:pt-6">
-        <div className="grid items-center gap-7 lg:grid-cols-[1.05fr_.95fr] lg:gap-10">
-          <div className="mx-auto w-full max-w-xl text-center lg:mx-0 lg:text-left">
+      <div className="mx-auto w-full max-w-6xl px-4 pb-6 pt-1 xs:px-5 sm:px-7 sm:pb-7 sm:pt-2 lg:px-10 lg:pb-8 lg:pt-3">
+        <div className="mb-5 text-center sm:mb-6">
+          <h1 className="mx-auto max-w-4xl text-[clamp(1.15rem,3.6vw,1.75rem)] font-semibold leading-tight text-maroon">
+            {hero.clinicHeadline}
+          </h1>
+        </div>
+
+        <div className="grid items-start gap-6 lg:grid-cols-[1.05fr_.95fr] lg:gap-10">
+          <div className="mx-auto w-full max-w-xl pt-6 text-center sm:pt-7 lg:mx-0 lg:pt-8 lg:text-left">
             <p className="mb-3 text-[clamp(0.58rem,1.5vw,0.625rem)] font-semibold uppercase tracking-[0.12em] text-maroon">
               {hero.eyebrow}
             </p>
 
-            <h1 className="mb-4 text-[clamp(1.5rem,6.5vw,2.625rem)] font-bold leading-[1.12] text-ink">
+            <h2 className="mb-4 text-[clamp(1.4rem,6vw,2.5rem)] font-bold leading-[1.12] text-ink">
               {hero.title}<br />
               {hero.titleEmphasis}{' '}
               {hero.titleSuffix}
-            </h1>
+            </h2>
 
-            <p className="mx-auto mb-6 max-w-lg text-[clamp(0.78rem,2vw,0.9375rem)] leading-relaxed text-muted lg:mx-0">
+            <p className="mx-auto mb-5 max-w-lg text-[clamp(0.76rem,1.9vw,0.9rem)] leading-relaxed text-muted lg:mx-0">
               {hero.description}
             </p>
 
-            <div className="mx-auto w-full max-w-[360px] lg:mx-0">
+            <div className="mx-auto w-full max-w-[430px] lg:mx-0">
               <div className="grid grid-cols-1 gap-3 xs:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => setShowContact(true)}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-maroon px-3 text-[clamp(0.7rem,1.8vw,0.75rem)] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-lg"
+                <Link
+                  to="/appointment?type=clinic"
+                  state={{ consultationType: 'offline' }}
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-maroon px-3 text-[clamp(0.7rem,1.8vw,0.75rem)] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-lg"
                 >
-                  <Phone size={16} />
-                  {hero.contact}
-                </button>
+                  <CalendarDays size={16} />
+                  {hero.bookAppointment}
+                </Link>
 
-                <a
-                  href={DIRECTIONS_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-line bg-white px-3 text-[clamp(0.7rem,1.8vw,0.75rem)] font-semibold text-ink transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-md"
+                <Link
+                  to="/appointment?type=virtual"
+                  state={{ consultationType: 'virtual' }}
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-maroon bg-white px-3 text-[clamp(0.7rem,1.8vw,0.75rem)] font-semibold text-maroon transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:bg-blush hover:shadow-md"
                 >
-                  <MapPin size={16} />
-                  {hero.directions}
-                </a>
+                  <Video size={16} />
+                  {hero.videoConsultation}
+                </Link>
               </div>
             </div>
           </div>
@@ -62,11 +68,7 @@ export default function Hero() {
 
             <div className="absolute bottom-1 left-1/2 flex w-[calc(100%_-_2rem)] max-w-[250px] -translate-x-1/2 items-center gap-2.5 rounded-xl border border-line bg-white px-3 py-2.5 shadow-card sm:bottom-2">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blush text-maroon">
-                <Check
-                  size={16}
-                  strokeWidth={2.2}
-                  aria-hidden="true"
-                />
+                <Check size={16} strokeWidth={2.2} aria-hidden="true" />
               </span>
 
               <div className="min-w-0 text-left leading-tight">
@@ -86,16 +88,10 @@ export default function Hero() {
       <div className="border-y border-line bg-white">
         <div className="mx-auto w-full max-w-6xl px-4 py-6 xs:px-5 sm:px-7 lg:px-10">
           <div className="grid gap-5 sm:grid-cols-3">
-            <Info
-              icon={MapPin}
-              title={hero.visitTitle}
-            >
+            <Info icon={MapPin} title={hero.visitTitle}>
               <p className="max-w-[280px] text-[clamp(0.68rem,1.5vw,0.75rem)] leading-relaxed text-muted">
                 {CLINIC.address.lines.map((line) => (
-                  <span
-                    key={line}
-                    className="block"
-                  >
+                  <span key={line} className="block">
                     {line}
                   </span>
                 ))}
@@ -105,8 +101,9 @@ export default function Hero() {
                 href={DIRECTIONS_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-2 inline-flex text-[clamp(0.68rem,1.5vw,0.75rem)] font-semibold text-maroon hover:underline"
+                className="mt-3 inline-flex min-h-9 items-center justify-center gap-2 rounded-full bg-maroon px-4 text-[clamp(0.68rem,1.5vw,0.75rem)] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
               >
+                <MapPin size={15} aria-hidden="true" />
                 {hero.directionsLink}
               </a>
             </Info>
@@ -155,16 +152,9 @@ export default function Hero() {
   );
 }
 
-function Info({
-  icon: Icon,
-  title,
-  children,
-  className = '',
-}) {
+function Info({ icon: Icon, title, children, className = '' }) {
   return (
-    <div
-      className={`flex min-w-0 items-start gap-3 ${className}`}
-    >
+    <div className={`flex min-w-0 items-start gap-3 ${className}`}>
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blush text-maroon">
         <Icon
           size={18}
@@ -177,7 +167,6 @@ function Info({
         <p className="mb-1.5 text-[clamp(0.72rem,1.8vw,0.875rem)] font-semibold text-ink">
           {title}
         </p>
-
         {children}
       </div>
     </div>

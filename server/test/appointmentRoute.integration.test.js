@@ -17,9 +17,20 @@ before(async () => {
     defaultExport: {
       findOne: () => ({ select: () => ({ lean: async () => null }) }),
       find: () => ({ select: () => ({ lean: async () => [] }) }),
-      create: async (doc) => ({ _id: 'appt_1', ...doc, createdAt: new Date() }),
+      create: async (doc) => ({ _id: 'appt_1', ...doc, createdAt: new Date(), holdExpiresAt: new Date(), save: async function() { return this; } }),
+      deleteOne: async () => ({ deletedCount: 0 }),
     },
   });
+
+  mock.module('../services/razorpayService.js', {
+    namedExports: {
+      createRazorpayOrder: async () => ({ id: 'order_1', amount: 50000, currency: 'INR' }),
+      getRazorpayKeyId: () => 'key_1',
+        fetchRazorpayOrder: async () => ({ status: 'created' }),
+    },
+  });
+
+  mock.module('../models/Payment.js', { defaultExport: { create: async () => ({ _id: 'payment_1' }) } });
 
   const { default: appointmentRoutes } = await import(
     `../routes/appointmentRoutes.js?t=${Date.now()}`
@@ -35,7 +46,8 @@ const validBody = {
   timeSlot: '10:00 AM',
   fullName: 'Asha Verma',
   phoneNumber: '9876543210',
-  email: '',
+  consultationType: 'offline',
+  email: 'asha@example.com',
 };
 
 describe('GET /api/appointment/booked-slots', () => {
@@ -84,7 +96,7 @@ describe('POST /api/appointment validation', () => {
     assert.equal(res.status, 400);
   });
 
-  test('invalid email (when provided) is rejected with 400', async () => {
+  test('invalid email is rejected with 400', async () => {
     const res = await request(app)
       .post('/api/appointment')
       .send({ ...validBody, email: 'not-an-email' });
