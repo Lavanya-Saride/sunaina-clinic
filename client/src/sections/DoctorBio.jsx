@@ -1,5 +1,5 @@
 import { CheckCircle2 } from 'lucide-react';
-import doctorPhoto from '../assets/images/doctor.jpg';
+import doctorPhoto from '../assets/images/Sunaina.jpeg';
 import { CLINIC, SITE_CONTENT } from '../utils/constants';
 
 export default function DoctorBio() {

@@ -33,6 +33,9 @@ export default function Hero() {
             <p className="mx-auto mb-5 max-w-lg text-[clamp(0.76rem,1.9vw,0.9rem)] leading-relaxed text-muted lg:mx-0">
               {hero.description}
             </p>
+            <p className="mx-auto mb-5 max-w-lg text-[clamp(0.7rem,1.7vw,0.8rem)] leading-relaxed text-muted lg:mx-0">
+              {hero.clinicalGuidelines}
+            </p>
 
             <div className="mx-auto w-full max-w-[430px] lg:mx-0">
               <div className="grid grid-cols-1 gap-3 xs:grid-cols-2">
