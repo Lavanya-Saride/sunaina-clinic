@@ -8,7 +8,7 @@ import {
   CalendarDays,
   Video,
 } from 'lucide-react';
-import doctorPhoto from '../assets/images/doctor.png';
+import doctorPhoto from '../assets/images/doctor.jpg';
 import {
   CLINIC,
   DIRECTIONS_URL,
