@@ -1,98 +1,230 @@
-import { Router } from 'express';
-import crypto from 'node:crypto';
-
-const router = Router();
-
-const getGoogleConfig = () => {
+function getGoogleConfig() {
   const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI?.trim();
+  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN?.trim();
+  const calendarId =
+    process.env.GOOGLE_CALENDAR_ID?.trim() || 'primary';
 
-  if (!clientId || !clientSecret || !redirectUri) {
-    throw new Error('Google OAuth configuration is incomplete.');
-  }
-
-  return { clientId, clientSecret, redirectUri };
-};
-
-router.get('/authorize', (req, res, next) => {
-  try {
-    const { clientId, redirectUri } = getGoogleConfig();
-
-    const state = crypto.randomBytes(32).toString('hex');
-
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: 'code',
-      access_type: 'offline',
-      prompt: 'consent',
-      scope: 'https://www.googleapis.com/auth/calendar.events',
-      state,
-    });
-
-    res.cookie('google_oauth_state', state, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 10 * 60 * 1000,
-    });
-
-    return res.redirect(
-      `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error(
+      'Google Calendar credentials are not fully configured.'
     );
-  } catch (error) {
-    next(error);
   }
-});
 
-router.get('/callback', async (req, res, next) => {
-  try {
-    const { code, state, error } = req.query;
+  return {
+    clientId,
+    clientSecret,
+    refreshToken,
+    calendarId,
+  };
+}
 
-    if (error) {
-      return res.status(400).send(`Google authorization failed: ${error}`);
-    }
+async function getAccessToken() {
+  const {
+    clientId,
+    clientSecret,
+    refreshToken,
+  } = getGoogleConfig();
 
-    if (!code || !state) {
-      return res.status(400).send('Missing Google authorization code or state.');
-    }
+  const body = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    refresh_token: refreshToken,
+    grant_type: 'refresh_token',
+  });
 
-    const { clientId, clientSecret, redirectUri } = getGoogleConfig();
-
-    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+  const response = await fetch(
+    'https://oauth2.googleapis.com/token',
+    {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        code,
-        grant_type: 'authorization_code',
-        redirect_uri: redirectUri,
-      }),
-    });
-
-    const tokenData = await tokenResponse.json();
-
-    if (!tokenResponse.ok || !tokenData.refresh_token) {
-      return res.status(400).json({
-        success: false,
-        message: 'Unable to obtain Google refresh token.',
-        error: tokenData.error_description || tokenData.error,
-      });
+      body,
     }
+  );
 
-    return res.status(200).send(`
-      <h2>Google Calendar authorization successful.</h2>
-      <p>Copy the refresh token below and add it to Render as GOOGLE_REFRESH_TOKEN.</p>
-      <textarea style="width:100%;height:120px;">${tokenData.refresh_token}</textarea>
-      <p>After saving it in Render, you can close this page.</p>
-    `);
-  } catch (error) {
-    next(error);
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || !data?.access_token) {
+    throw new Error(
+      data?.error_description ||
+        'Unable to authenticate with Google.'
+    );
   }
-});
 
-export default router;
+  return data.access_token;
+}
+
+function getDateTime(
+  date,
+  time,
+  addMinutes = 0
+) {
+  const [clock, period] = time.split(' ');
+  const [hourValue, minuteValue] =
+    clock.split(':').map(Number);
+
+  let hour = hourValue;
+
+  if (period === 'PM' && hour !== 12) {
+    hour += 12;
+  }
+
+  if (period === 'AM' && hour === 12) {
+    hour = 0;
+  }
+
+  const base = new Date(
+    `${date}T${String(hour).padStart(2, '0')}:${String(
+      minuteValue
+    ).padStart(2, '0')}:00+05:30`
+  );
+
+  base.setMinutes(
+    base.getMinutes() + addMinutes
+  );
+
+  return base.toISOString();
+}
+
+async function calendarRequest(
+  path,
+  options = {}
+) {
+  const accessToken = await getAccessToken();
+
+  const response = await fetch(
+    `https://www.googleapis.com/calendar/v3${path}`,
+    {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(options.headers || {}),
+      },
+    }
+  );
+
+  const data = await response
+    .json()
+    .catch(() => null);
+
+  if (!response.ok) {
+    const error = new Error(
+      data?.error?.message ||
+        'Google Calendar request failed.'
+    );
+
+    error.status = response.status;
+
+    throw error;
+  }
+
+  return data;
+}
+
+export async function createVirtualConsultation({
+  appointment,
+}) {
+  const { calendarId } =
+    getGoogleConfig();
+
+  const start = getDateTime(
+    appointment.appointmentDate,
+    appointment.timeSlot
+  );
+
+  const end = getDateTime(
+    appointment.appointmentDate,
+    appointment.timeSlot,
+    30
+  );
+
+  const requestId =
+    `sunaina-${appointment._id.toString()}-${Date.now()}`;
+
+  const event = await calendarRequest(
+    `/calendars/${encodeURIComponent(
+      calendarId
+    )}/events?conferenceDataVersion=1&sendUpdates=none`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        summary: `Virtual Consultation - ${appointment.fullName}`,
+
+        description:
+          `Sunaina Clinic virtual consultation for ${appointment.fullName}. Appointment ID: ${appointment._id}`,
+
+        start: {
+          dateTime: start,
+          timeZone: 'Asia/Kolkata',
+        },
+
+        end: {
+          dateTime: end,
+          timeZone: 'Asia/Kolkata',
+        },
+
+        attendees: appointment.email
+          ? [{ email: appointment.email }]
+          : [],
+
+        conferenceData: {
+          createRequest: {
+            requestId,
+            conferenceSolutionKey: {
+              type: 'hangoutsMeet',
+            },
+          },
+        },
+      }),
+    }
+  );
+
+  let meetUrl =
+    extractMeetUrl(event);
+
+  for (
+    let attempt = 0;
+    !meetUrl && attempt < 5;
+    attempt += 1
+  ) {
+    await new Promise((resolve) =>
+      setTimeout(resolve, 1000)
+    );
+
+    const refreshed =
+      await calendarRequest(
+        `/calendars/${encodeURIComponent(
+          calendarId
+        )}/events/${encodeURIComponent(
+          event.id
+        )}`,
+        {
+          method: 'GET',
+        }
+      );
+
+    meetUrl =
+      extractMeetUrl(refreshed);
+
+    if (meetUrl) {
+      return refreshed;
+    }
+  }
+
+  return event;
+}
+
+export function extractMeetUrl(event) {
+  return (
+    event?.hangoutLink ||
+    event?.conferenceData?.entryPoints?.find(
+      (entry) =>
+        entry.entryPointType === 'video'
+    )?.uri ||
+    ''
+  );
+}
