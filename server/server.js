@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-
+import cookieParser from 'cookie-parser';
 import connectDB from './config/db.js';
 
 import feedbackRoutes from './routes/feedbackRoutes.js';
@@ -10,6 +10,7 @@ import healthRoutes from './routes/healthRoutes.js';
 import appointmentRoutes from './routes/appointmentRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import contactRoutes from './routes/contactRoutes.js';
+import googleAuthRoutes from './routes/googleAuthRoutes.js';
 
 import {
   notFound,
@@ -107,6 +108,8 @@ app.use(express.json({
   },
 }));
 
+app.use(cookieParser());
+
 app.use('/api', apiLimiter);
 
 app.use('/api/health', healthRoutes);
@@ -118,6 +121,8 @@ app.use('/api/appointment', appointmentRoutes);
 app.use('/api/payment', paymentRoutes);
 
 app.use('/api/contact', contactRoutes);
+
+app.use('/api/google', googleAuthRoutes);
 
 app.use(notFound);
 
