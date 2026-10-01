@@ -11,6 +11,7 @@ import appointmentRoutes from './routes/appointmentRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import contactRoutes from './routes/contactRoutes.js';
 import googleAuthRoutes from './routes/googleAuthRoutes.js';
+import googlePlacesRoutes from './routes/googlePlacesRoutes.js';
 
 import {
   notFound,
@@ -123,6 +124,8 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/contact', contactRoutes);
 
 app.use('/api/google', googleAuthRoutes);
+
+app.use('/api/google-places', googlePlacesRoutes);
 
 app.use(notFound);
 
