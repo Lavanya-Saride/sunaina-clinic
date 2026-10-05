@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createAppointmentOrder, getBookedSlots } from '../controllers/appointmentController.js';
+import { createAppointment, getBookedSlots } from '../controllers/appointmentController.js';
 import {
   appointmentValidationRules,
   bookedSlotsQueryRules,
@@ -11,6 +11,6 @@ import { submitAppointmentLimiter } from '../middleware/rateLimiter.js';
 const router = Router();
 
 router.get('/booked-slots', bookedSlotsQueryRules, handleAppointmentValidationErrors, getBookedSlots);
-router.post('/', submitAppointmentLimiter, rejectUnknownAppointmentFields, appointmentValidationRules, handleAppointmentValidationErrors, createAppointmentOrder);
+router.post('/', submitAppointmentLimiter, rejectUnknownAppointmentFields, appointmentValidationRules, handleAppointmentValidationErrors, createAppointment);
 
 export default router;

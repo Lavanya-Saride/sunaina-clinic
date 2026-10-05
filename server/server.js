@@ -4,14 +4,18 @@ import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import connectDB from './config/db.js';
+import { runMigrations } from './config/migrations.js';
+import { startReminderJob } from './jobs/reminderJob.js';
 
 import feedbackRoutes from './routes/feedbackRoutes.js';
 import healthRoutes from './routes/healthRoutes.js';
 import appointmentRoutes from './routes/appointmentRoutes.js';
-import paymentRoutes from './routes/paymentRoutes.js';
 import contactRoutes from './routes/contactRoutes.js';
 import googleAuthRoutes from './routes/googleAuthRoutes.js';
 import googlePlacesRoutes from './routes/googlePlacesRoutes.js';
+import authRoutes from './routes/authRoutes.js';
+import dashboardRoutes from './routes/dashboardRoutes.js';
+import whatsappRoutes from './routes/whatsappRoutes.js';
 
 import {
   notFound,
@@ -93,6 +97,7 @@ app.use(
     allowedHeaders: [
       'Content-Type',
       'Accept',
+      'Authorization',
     ],
 
     optionsSuccessStatus: 204,
@@ -103,7 +108,7 @@ app.use(express.json({
   limit: '10kb',
   strict: true,
   verify(req, res, buffer) {
-    if (req.originalUrl === '/api/payment/webhook') {
+    if (req.originalUrl === '/api/whatsapp/webhook') {
       req.rawBody = Buffer.from(buffer);
     }
   },
@@ -119,9 +124,13 @@ app.use('/api/feedback', feedbackRoutes);
 
 app.use('/api/appointment', appointmentRoutes);
 
-app.use('/api/payment', paymentRoutes);
-
 app.use('/api/contact', contactRoutes);
+
+app.use('/api/auth', authRoutes);
+
+app.use('/api/dashboard', dashboardRoutes);
+
+app.use('/api/whatsapp', whatsappRoutes);
 
 app.use('/api/google', googleAuthRoutes);
 
@@ -134,6 +143,17 @@ app.use(errorHandler);
 async function start() {
   try {
     await connectDB();
+
+    try {
+      const result = await runMigrations();
+      if (result.migrated > 0) {
+        console.log(`Data migration completed for ${result.migrated} appointment(s).`);
+      }
+    } catch (migrationError) {
+      console.error('Data migration failed:', migrationError.message);
+    }
+
+    startReminderJob();
 
     app.listen(PORT, () => {
       console.log(

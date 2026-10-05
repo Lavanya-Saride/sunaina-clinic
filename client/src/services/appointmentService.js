@@ -7,12 +7,7 @@ export async function getBookedSlots(date) {
   return Array.isArray(slots) ? slots : [];
 }
 
-export async function createAppointmentOrder(payload) {
+export async function createAppointment(payload) {
   const response = await api.post('/appointment', payload);
-  return response.data;
-}
-
-export async function verifyPayment(payload) {
-  const response = await api.post('/payment/verify', payload);
   return response.data;
 }

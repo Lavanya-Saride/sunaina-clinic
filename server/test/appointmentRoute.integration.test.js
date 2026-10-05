@@ -6,31 +6,23 @@ import request from 'supertest';
 let app;
 
 before(async () => {
-  mock.module('../models/Appointment.js', {
+  mock.module('../services/appointmentService.js', {
     namedExports: {
-      TIME_SLOTS: [
-        '10:00 AM',
-        '10:30 AM',
-        '11:00 AM',
-      ],
-    },
-    defaultExport: {
-      findOne: () => ({ select: () => ({ lean: async () => null }) }),
-      find: () => ({ select: () => ({ lean: async () => [] }) }),
-      create: async (doc) => ({ _id: 'appt_1', ...doc, createdAt: new Date(), holdExpiresAt: new Date(), save: async function() { return this; } }),
-      deleteOne: async () => ({ deletedCount: 0 }),
+      releaseExpiredHolds: async () => ({}),
+      getUnavailableSlots: async () => [],
+      createAppointmentRecord: async (input) => ({
+        _id: 'appt_1',
+        appointmentNumber: 'SC20991201ABC123',
+        appointmentDate: input.appointmentDate,
+        timeSlot: input.timeSlot,
+        consultationType: input.consultationType,
+        status: 'PENDING_PAYMENT',
+        fee: 500,
+        currency: 'INR',
+        holdExpiresAt: new Date(),
+      }),
     },
   });
-
-  mock.module('../services/razorpayService.js', {
-    namedExports: {
-      createRazorpayOrder: async () => ({ id: 'order_1', amount: 50000, currency: 'INR' }),
-      getRazorpayKeyId: () => 'key_1',
-        fetchRazorpayOrder: async () => ({ status: 'created' }),
-    },
-  });
-
-  mock.module('../models/Payment.js', { defaultExport: { create: async () => ({ _id: 'payment_1' }) } });
 
   const { default: appointmentRoutes } = await import(
     `../routes/appointmentRoutes.js?t=${Date.now()}`
@@ -66,10 +58,27 @@ describe('GET /api/appointment/booked-slots', () => {
 });
 
 describe('POST /api/appointment validation', () => {
-  test('valid payload succeeds with 201', async () => {
+  test('valid payload creates a pending-payment request with 201', async () => {
     const res = await request(app).post('/api/appointment').send(validBody);
     assert.equal(res.status, 201);
     assert.equal(res.body.success, true);
+    assert.equal(res.body.data.status, 'PENDING_PAYMENT');
+    assert.equal(res.body.data.orderId, undefined);
+    assert.equal(res.body.data.keyId, undefined);
+  });
+
+  test('accepts an explicit WhatsApp consent flag', async () => {
+    const res = await request(app)
+      .post('/api/appointment')
+      .send({ ...validBody, whatsappOptIn: true });
+    assert.equal(res.status, 201);
+  });
+
+  test('rejects a non-boolean WhatsApp consent flag', async () => {
+    const res = await request(app)
+      .post('/api/appointment')
+      .send({ ...validBody, whatsappOptIn: 'yes' });
+    assert.equal(res.status, 400);
   });
 
   test('past date is rejected with 400', async () => {

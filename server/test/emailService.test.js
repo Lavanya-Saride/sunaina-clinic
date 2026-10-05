@@ -1,183 +1,86 @@
-import { test, describe, mock, beforeEach, afterEach } from 'node:test';
+import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-
+import { installFakeExternalApis } from './helpers/externalApis.js';
+import {
+  getMailbox,
+  sendAppointmentConfirmationToPatient,
+  sendCallbackRequest,
+} from '../services/emailService.js';
+import { clearGoogleTokenCache } from '../services/googleAuth.js';
 
 const ORIGINAL_ENV = { ...process.env };
+const fake = installFakeExternalApis();
 
-function setEmailEnv(overrides = {}) {
-  process.env.RESEND_API_KEY = 're_test_key';
-  process.env.RESEND_FROM = 'onboarding@resend.dev';
-  process.env.CLINIC_EMAIL = 'clinic@example.com';
-  Object.assign(process.env, overrides);
-}
+const appointment = {
+  _id: 'appt1',
+  appointmentNumber: 'SC20991201ABC123',
+  appointmentDate: '2099-12-01',
+  timeSlot: '10:00 AM',
+  consultationType: 'offline',
+  fullName: 'Asha <b>Verma</b>',
+  email: 'asha@example.com',
+  phoneNumber: '9876543210',
+  fee: 500,
+};
 
-function restoreEnv() {
-  process.env = { ...ORIGINAL_ENV };
-}
+describe('emailService (Gmail API faked, no real network call)', () => {
+  beforeEach(() => {
+    process.env = {
+      ...ORIGINAL_ENV,
+      GOOGLE_CLIENT_ID: 'id',
+      GOOGLE_CLIENT_SECRET: 'secret',
+      GOOGLE_REFRESH_TOKEN: 'refresh',
+    };
+    delete process.env.EMAIL_APPOINTMENTS;
+    delete process.env.EMAIL_SUPPORT;
+    clearGoogleTokenCache();
+    fake.reset();
+  });
 
-describe('emailService.sendCallbackRequest (Resend mocked, no real network call)', () => {
   afterEach(() => {
-    restoreEnv();
-    mock.reset();
+    process.env = { ...ORIGINAL_ENV };
   });
 
-  test('sends via Resend with correct from/to/subject and passes the idempotency key through as an option (not in the payload)', async () => {
-    setEmailEnv();
-
-    const sendCalls = [];
-
-    mock.module('resend', {
-      namedExports: {
-        Resend: class {
-          constructor(apiKey) {
-            this.apiKey = apiKey;
-          }
-          emails = {
-            send: async (payload, options) => {
-              sendCalls.push({ payload, options, apiKey: this.apiKey });
-              return { data: { id: 'email_123' }, error: null };
-            },
-          };
-        },
-      },
-    });
-
-    const { sendCallbackRequest } = await import(
-      `../services/emailService.js?t=${Date.now()}-1`
-    );
-
-    const result = await sendCallbackRequest({
-      name: 'Asha Verma',
-      phone: '+919876543210',
-      idempotencyKey: 'callback-abc123',
-    });
-
-    assert.equal(sendCalls.length, 1);
-    assert.equal(sendCalls[0].apiKey, 're_test_key');
-    assert.equal(sendCalls[0].payload.from, 'onboarding@resend.dev');
-    assert.deepEqual(sendCalls[0].payload.to, ['clinic@example.com']);
-    assert.match(sendCalls[0].payload.subject, /Callback Request/);
-    assert.match(sendCalls[0].payload.text, /Asha Verma/);
-    assert.match(sendCalls[0].payload.text, /\+919876543210/);
-    assert.deepEqual(sendCalls[0].options, {
-      idempotencyKey: 'callback-abc123',
-    });
-    assert.equal(result.id, 'email_123');
+  test('appointment emails are sent from the appointments company mailbox', async () => {
+    await sendAppointmentConfirmationToPatient(appointment);
+    assert.equal(fake.state.emails.length, 1);
+    assert.match(fake.state.emails[0].from, /<appointments@sunaina-clinic\.com>/);
+    assert.equal(fake.state.emails[0].to, 'asha@example.com');
+    assert.match(fake.state.emails[0].subject, /Appointment Confirmed/);
   });
 
-  test('throws and does not report success when Resend returns an error (never silently succeeds)', async () => {
-    setEmailEnv();
+  test('callback requests are sent from and to the support mailbox', async () => {
+    await sendCallbackRequest({ name: 'Asha', phone: '9876543210' });
+    assert.match(fake.state.emails[0].from, /<support@sunaina-clinic\.com>/);
+    assert.equal(fake.state.emails[0].to, 'support@sunaina-clinic.com');
+  });
 
-    mock.module('resend', {
-      namedExports: {
-        Resend: class {
-          emails = {
-            send: async () => ({
-              data: null,
-              error: { message: 'Domain not verified', statusCode: 403 },
-            }),
-          };
-        },
-      },
-    });
+  test('refuses a mailbox outside the company domain', () => {
+    process.env.EMAIL_APPOINTMENTS = 'someone@gmail.com';
+    assert.throws(() => getMailbox('appointments'), /sunaina-clinic\.com/);
+  });
 
-    const { sendCallbackRequest } = await import(
-      `../services/emailService.js?t=${Date.now()}-2`
-    );
+  test('escapes patient-supplied values in the HTML body', async () => {
+    await sendAppointmentConfirmationToPatient({ ...appointment, fullName: '<script>x</script>' });
+    assert.equal(fake.state.emails[0].html.includes('<script>'), false);
+  });
 
+  test('does not send a patient email when no address is on file', async () => {
+    const result = await sendAppointmentConfirmationToPatient({ ...appointment, email: '' });
+    assert.equal(result, null);
+    assert.equal(fake.state.emails.length, 0);
+  });
+
+  test('rejects recipients containing header-injection characters', async () => {
     await assert.rejects(
-      () => sendCallbackRequest({ name: 'A', phone: '9876543210' }),
-      /Domain not verified/
+      sendAppointmentConfirmationToPatient({ ...appointment, email: 'a@b.com\r\nBcc: x@y.com' }),
+      /invalid/i
     );
+    assert.equal(fake.state.emails.length, 0);
   });
 
-  test('throws when RESEND_API_KEY is missing (never sends with an empty key)', async () => {
-    setEmailEnv({ RESEND_API_KEY: '' });
-
-    mock.module('resend', {
-      namedExports: {
-        Resend: class {
-          emails = { send: async () => ({ data: { id: 'x' }, error: null }) };
-        },
-      },
-    });
-
-    const { sendCallbackRequest } = await import(
-      `../services/emailService.js?t=${Date.now()}-3`
-    );
-
-    await assert.rejects(
-      () => sendCallbackRequest({ name: 'A', phone: '9876543210' }),
-      /RESEND_API_KEY is not configured/
-    );
-  });
-
-  test('throws when RESEND_FROM is missing', async () => {
-    setEmailEnv({ RESEND_FROM: '' });
-
-    mock.module('resend', {
-      namedExports: {
-        Resend: class {
-          emails = { send: async () => ({ data: { id: 'x' }, error: null }) };
-        },
-      },
-    });
-
-    const { sendCallbackRequest } = await import(
-      `../services/emailService.js?t=${Date.now()}-4`
-    );
-
-    await assert.rejects(
-      () => sendCallbackRequest({ name: 'A', phone: '9876543210' }),
-      /RESEND_FROM is not configured/
-    );
-  });
-
-  test('throws when CLINIC_EMAIL is missing', async () => {
-    setEmailEnv({ CLINIC_EMAIL: '' });
-
-    mock.module('resend', {
-      namedExports: {
-        Resend: class {
-          emails = { send: async () => ({ data: { id: 'x' }, error: null }) };
-        },
-      },
-    });
-
-    const { sendCallbackRequest } = await import(
-      `../services/emailService.js?t=${Date.now()}-5`
-    );
-
-    await assert.rejects(
-      () => sendCallbackRequest({ name: 'A', phone: '9876543210' }),
-      /CLINIC_EMAIL is not configured/
-    );
-  });
-
-  test('does not pass an idempotencyKey option when none is given (backwards compatible)', async () => {
-    setEmailEnv();
-
-    let capturedOptions = 'not-called';
-
-    mock.module('resend', {
-      namedExports: {
-        Resend: class {
-          emails = {
-            send: async (payload, options) => {
-              capturedOptions = options;
-              return { data: { id: 'email_456' }, error: null };
-            },
-          };
-        },
-      },
-    });
-
-    const { sendCallbackRequest } = await import(
-      `../services/emailService.js?t=${Date.now()}-6`
-    );
-
-    await sendCallbackRequest({ name: 'A', phone: '9876543210' });
-
-    assert.equal(capturedOptions, undefined);
+  test('surfaces a Gmail failure instead of reporting success', async () => {
+    fake.state.failGmail = true;
+    await assert.rejects(sendAppointmentConfirmationToPatient(appointment), /Gmail unavailable/);
   });
 });

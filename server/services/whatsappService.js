@@ -1,34 +1,56 @@
 import { CLINIC_MAPS_URL, getSlotEndLabel } from '../config/appointmentConfig.js';
+import { formatDisplayDate } from '../utils/appointmentTime.js';
+import { normalizePhone } from '../utils/phone.js';
+
+const TEMPLATE_DEFAULTS = {
+  confirmation: ['WHATSAPP_TEMPLATE_CONFIRMATION', 'appointment_confirmation'],
+  reminder: ['WHATSAPP_TEMPLATE_REMINDER', 'appointment_reminder'],
+  feedback: ['WHATSAPP_TEMPLATE_FEEDBACK', 'feedback_request'],
+  clinicAlert: ['WHATSAPP_TEMPLATE_CLINIC_ALERT', 'clinic_new_appointment'],
+};
+
+export function isWhatsAppConfigured() {
+  return Boolean(
+    process.env.WHATSAPP_PHONE_NUMBER_ID?.trim() && process.env.WHATSAPP_ACCESS_TOKEN?.trim()
+  );
+}
 
 function getWhatsAppConfig() {
-  const apiUrl = process.env.WHATSAPP_API_URL?.trim() || 'https://graph.facebook.com/v20.0';
+  const apiVersion = process.env.WHATSAPP_API_VERSION?.trim() || 'v20.0';
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN?.trim();
   const clinicNumber = process.env.WHATSAPP_CLINIC_NUMBER?.trim();
+  const language = process.env.WHATSAPP_TEMPLATE_LANGUAGE?.trim() || 'en';
 
   if (!phoneNumberId || !accessToken) {
     throw new Error('WhatsApp credentials are not fully configured.');
   }
 
-  return { apiUrl, phoneNumberId, accessToken, clinicNumber };
+  return { apiVersion, phoneNumberId, accessToken, clinicNumber, language };
 }
 
-function normalizeWhatsAppNumber(value) {
-  const digits = String(value || '').replace(/\D/g, '');
-  if (!digits) return '';
-  if (digits.length === 10) return `91${digits}`;
-  return digits;
+function getTemplateName(key) {
+  const [envKey, fallback] = TEMPLATE_DEFAULTS[key];
+  return process.env[envKey]?.trim() || fallback;
 }
 
-async function sendWhatsAppTextMessage(to, body) {
-  const { apiUrl, phoneNumberId, accessToken } = getWhatsAppConfig();
-  const recipient = normalizeWhatsAppNumber(to);
+function cleanParameter(value) {
+  const text = String(value ?? '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/ {2,}/g, ' ')
+    .trim();
+  return text || '-';
+}
+
+async function sendTemplateMessage(to, templateKey, parameters) {
+  const { apiVersion, phoneNumberId, accessToken, language } = getWhatsAppConfig();
+  const recipient = normalizePhone(to);
 
   if (!recipient) {
     throw new Error('WhatsApp recipient number is missing.');
   }
 
-  const response = await fetch(`${apiUrl}/${phoneNumberId}/messages`, {
+  const response = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -37,10 +59,16 @@ async function sendWhatsAppTextMessage(to, body) {
     body: JSON.stringify({
       messaging_product: 'whatsapp',
       to: recipient,
-      type: 'text',
-      text: {
-        preview_url: true,
-        body,
+      type: 'template',
+      template: {
+        name: getTemplateName(templateKey),
+        language: { code: language },
+        components: [
+          {
+            type: 'body',
+            parameters: parameters.map((text) => ({ type: 'text', text: cleanParameter(text) })),
+          },
+        ],
       },
     }),
   });
@@ -60,47 +88,44 @@ function getConsultationLabel(appointment) {
   return appointment.consultationType === 'virtual' ? 'Virtual Consultation' : 'Clinic Consultation';
 }
 
-function buildAppointmentLines(appointment) {
-  const endLabel = getSlotEndLabel(appointment.timeSlot);
-  const lines = [
-    `Appointment No: ${appointment.appointmentNumber}`,
-    `Consultation: ${getConsultationLabel(appointment)}`,
-    `Date: ${appointment.appointmentDate}`,
-    `Time: ${appointment.timeSlot} - ${endLabel}`,
-    `Payment: Received (Rs. ${appointment.fee})`,
-  ];
-
+function getLinkText(appointment) {
   if (appointment.consultationType === 'virtual') {
-    lines.push(appointment.meetUrl ? `Google Meet: ${appointment.meetUrl}` : 'Google Meet link will be shared shortly.');
-  } else {
-    lines.push(`Directions: ${CLINIC_MAPS_URL}`);
+    return appointment.meetUrl || 'Your Google Meet link will be shared shortly.';
   }
-
-  return lines;
+  return CLINIC_MAPS_URL;
 }
 
-export async function sendPatientAppointmentWhatsApp(appointment) {
-  if (!appointment.phoneNumber) return null;
-
-  const lines = [
-    'Your appointment at Sunaina Clinic is confirmed.',
-    ...buildAppointmentLines(appointment),
+function getAppointmentParameters(appointment) {
+  return [
+    appointment.fullName,
+    formatDisplayDate(appointment.appointmentDate),
+    `${appointment.timeSlot} - ${getSlotEndLabel(appointment.timeSlot)}`,
+    getConsultationLabel(appointment),
+    getLinkText(appointment),
   ];
-
-  return sendWhatsAppTextMessage(appointment.phoneNumber, lines.join('\n'));
 }
 
-export async function sendClinicAppointmentWhatsApp(appointment) {
+export function sendPatientConfirmationWhatsApp(appointment, to) {
+  return sendTemplateMessage(to, 'confirmation', getAppointmentParameters(appointment));
+}
+
+export function sendPatientReminderWhatsApp(appointment, to) {
+  return sendTemplateMessage(to, 'reminder', getAppointmentParameters(appointment));
+}
+
+export function sendPatientFeedbackWhatsApp(appointment, to, feedbackUrl) {
+  return sendTemplateMessage(to, 'feedback', [appointment.fullName, feedbackUrl]);
+}
+
+export async function sendClinicAlertWhatsApp(appointment) {
   const { clinicNumber } = getWhatsAppConfig();
   if (!clinicNumber) return null;
 
-  const lines = [
-    'New paid appointment.',
-    ...buildAppointmentLines(appointment),
-    `Patient: ${appointment.fullName}`,
-    `Phone: ${appointment.phoneNumber}`,
-    `Email: ${appointment.email}`,
-  ];
-
-  return sendWhatsAppTextMessage(clinicNumber, lines.join('\n'));
+  return sendTemplateMessage(clinicNumber, 'clinicAlert', [
+    appointment.fullName,
+    formatDisplayDate(appointment.appointmentDate),
+    `${appointment.timeSlot} - ${getSlotEndLabel(appointment.timeSlot)}`,
+    getConsultationLabel(appointment),
+    appointment.appointmentNumber,
+  ]);
 }

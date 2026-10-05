@@ -13,17 +13,13 @@ export async function requestCallback(req, res, next) {
     });
 
     try {
-      await sendCallbackRequest({
-        name,
-        phone,
-        idempotencyKey: `callback-${callbackRequest._id.toString()}`,
-      });
+      await sendCallbackRequest({ name, phone });
     } catch (emailError) {
       console.error('CALLBACK EMAIL ERROR:', {
         message: emailError.message,
         name: emailError.name,
         code: emailError.code,
-        statusCode: emailError.statusCode,
+        status: emailError.status,
       });
 
       return res.status(503).json({
@@ -51,7 +47,6 @@ export async function requestCallback(req, res, next) {
       message: error.message,
       name: error.name,
       code: error.code,
-      stack: error.stack,
     });
 
     next(error);

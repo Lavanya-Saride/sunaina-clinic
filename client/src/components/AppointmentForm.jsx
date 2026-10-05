@@ -10,9 +10,8 @@ import {
 import { Link, useLocation } from 'react-router-dom';
 import { SITE_CONTENT, TIME_SLOTS } from '../utils/constants';
 import {
-  createAppointmentOrder,
+  createAppointment,
   getBookedSlots,
-  verifyPayment,
 } from '../services/appointmentService';
 
 const CONSULTATION_TYPES = ['offline', 'virtual'];
@@ -118,6 +117,7 @@ function buildEmptyForm(
     fullName: '',
     phoneNumber: '',
     email: '',
+    whatsappOptIn: false,
   };
 }
 
@@ -333,74 +333,6 @@ function getCalendarDays(
   return days;
 }
 
-function loadRazorpay() {
-  if (window.Razorpay) {
-    return Promise.resolve(
-      window.Razorpay
-    );
-  }
-
-  return new Promise(
-    (resolve, reject) => {
-      const existing =
-        document.querySelector(
-          'script[data-razorpay-checkout]'
-        );
-
-      if (existing) {
-        existing.addEventListener(
-          'load',
-          () =>
-            resolve(
-              window.Razorpay
-            )
-        );
-
-        existing.addEventListener(
-          'error',
-          () =>
-            reject(
-              new Error(
-                'Unable to load payment service.'
-              )
-            )
-        );
-
-        return;
-      }
-
-      const script =
-        document.createElement(
-          'script'
-        );
-
-      script.src =
-        'https://checkout.razorpay.com/v1/checkout.js';
-
-      script.async = true;
-
-      script.dataset.razorpayCheckout =
-        'true';
-
-      script.onload = () =>
-        resolve(
-          window.Razorpay
-        );
-
-      script.onerror = () =>
-        reject(
-          new Error(
-            'Unable to load payment service.'
-          )
-        );
-
-      document.body.appendChild(
-        script
-      );
-    }
-  );
-}
-
 export default function AppointmentForm() {
   const location = useLocation();
 
@@ -598,11 +530,16 @@ export default function AppointmentForm() {
     const {
       name,
       value,
+      type,
+      checked,
     } = event.target;
 
     setFormData((current) => ({
       ...current,
-      [name]: value,
+      [name]:
+        type === 'checkbox'
+          ? checked
+          : value,
     }));
 
     setMessage('');
@@ -820,7 +757,7 @@ export default function AppointmentForm() {
 
     try {
       const response =
-        await createAppointmentOrder({
+        await createAppointment({
           appointmentDate:
             formData.appointmentDate,
           timeSlot:
@@ -831,130 +768,47 @@ export default function AppointmentForm() {
           phoneNumber:
             formData.phoneNumber.trim(),
           email,
+          whatsappOptIn:
+            formData.whatsappOptIn,
         });
 
-      const order = response?.data;
+      const booking = response?.data;
 
-      if (
-        !order?.orderId ||
-        !order?.keyId ||
-        !order?.appointmentId
-      ) {
+      if (!booking?.appointmentNumber) {
         throw new Error(
-          appointment.paymentError ||
-            'Unable to start payment.'
+          appointment.genericError ||
+            'Something went wrong. Please try again.'
         );
       }
 
-      const Razorpay =
-        await loadRazorpay();
+      setIsSuccess(true);
 
-      const consultationLabel =
-        formData.consultationType ===
-        'virtual'
-          ? 'Virtual Consultation'
-          : 'Clinic Consultation';
-
-      const razorpay =
-        new Razorpay({
-          key: order.keyId,
-          amount: order.amount,
-          currency:
-            order.currency,
-          name:
-            'Sunaina Clinic',
-          description:
-            consultationLabel,
-          order_id:
-            order.orderId,
-          prefill: {
-            name,
-            email,
-            contact:
-              formData.phoneNumber.trim(),
-          },
-          notes: {
-            appointmentId:
-              order.appointmentId,
-          },
-          theme: {
-            color: '#4F172D',
-          },
-          handler:
-            async (
-              paymentResponse
-            ) => {
-              try {
-                const verified =
-                  await verifyPayment({
-                    appointmentId:
-                      order.appointmentId,
-                    razorpay_order_id:
-                      paymentResponse.razorpay_order_id,
-                    razorpay_payment_id:
-                      paymentResponse.razorpay_payment_id,
-                    razorpay_signature:
-                      paymentResponse.razorpay_signature,
-                  });
-
-                setIsSuccess(true);
-
-                setMessage(
-                  verified?.message ||
-                    appointment.success ||
-                    'Appointment successfully booked.'
-                );
-
-                setConfirmation(
-                  verified?.data ||
-                    null
-                );
-
-                setBookedSlots(
-                  (current) =>
-                    current.includes(
-                      order.timeSlot
-                    )
-                      ? current
-                      : [
-                          ...current,
-                          order.timeSlot,
-                        ]
-                );
-
-                setFormData(
-                  buildEmptyForm(
-                    formData.consultationType
-                  )
-                );
-              } catch (error) {
-                setIsSuccess(false);
-
-                setMessage(
-                  error?.response
-                    ?.data?.message ||
-                    appointment.paymentVerificationError ||
-                    'Payment verification failed. Please contact us if the amount was deducted.'
-                );
-              } finally {
-                setIsSubmitting(false);
-              }
-            },
-        });
-
-      razorpay.on(
-        'payment.failed',
-        () => {
-          setIsSubmitting(false);
-          setIsSuccess(false);
-          setMessage(
-            appointment.paymentFailed ||
-              'Payment failed. Please try again.'
-          );
-        }
+      setMessage(
+        response?.message ||
+          appointment.success ||
+          'Your appointment request has been received.'
       );
 
-      razorpay.open();
+      setConfirmation(booking);
+
+      setBookedSlots((current) =>
+        current.includes(
+          booking.timeSlot
+        )
+          ? current
+          : [
+              ...current,
+              booking.timeSlot,
+            ]
+      );
+
+      setFormData(
+        buildEmptyForm(
+          formData.consultationType
+        )
+      );
+
+      setIsSubmitting(false);
     } catch (error) {
       if (
         error?.response?.status ===
@@ -1387,6 +1241,27 @@ export default function AppointmentForm() {
             </div>
           </div>
 
+          <label
+            htmlFor="whatsappOptIn"
+            className="flex min-h-11 cursor-pointer items-start gap-3 text-[clamp(0.72rem,1.7vw,0.8rem)] leading-relaxed text-ink/80"
+          >
+            <input
+              id="whatsappOptIn"
+              name="whatsappOptIn"
+              type="checkbox"
+              checked={
+                formData.whatsappOptIn
+              }
+              onChange={handleChange}
+              className="mt-0.5 h-5 w-5 shrink-0 accent-maroon"
+            />
+
+            <span>
+              {appointment.whatsappConsent ||
+                'Send my appointment confirmation, reminder and feedback request on WhatsApp'}
+            </span>
+          </label>
+
           {message && (
             <div
               role="alert"
@@ -1402,37 +1277,38 @@ export default function AppointmentForm() {
 
           {confirmation && (
             <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-[clamp(0.7rem,1.6vw,0.8rem)] leading-relaxed text-green-800">
-              <p>
+              <p className="break-words">
                 <strong>
                   {appointment.confirmationId ||
-                    'Appointment ID'}
+                    'Appointment Number'}
                   :
                 </strong>{' '}
-                {confirmation.appointmentNumber ||
-                  confirmation.appointmentId}
+                {confirmation.appointmentNumber}
               </p>
 
-              {confirmation.consultationType ===
-                'virtual' &&
-                confirmation.meetUrl && (
-                  <p className="mt-1">
-                    <a
-                      href={
-                        confirmation.meetUrl
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-semibold underline"
-                    >
-                      {appointment.joinConsultation ||
-                        'Join Virtual Consultation'}
-                    </a>
-                  </p>
-                )}
-
               <p className="mt-1">
-                {appointment.confirmationEmail ||
-                  'Confirmation details have been sent to your email.'}
+                <strong>
+                  {appointment.amountDue ||
+                    'Consultation fee'}
+                  :
+                </strong>{' '}
+                ₹{confirmation.amount}
+              </p>
+
+              {confirmation.upiId && (
+                <p className="mt-1 break-all">
+                  <strong>
+                    {appointment.payToUpi ||
+                      'Pay by UPI'}
+                    :
+                  </strong>{' '}
+                  {confirmation.upiId}
+                </p>
+              )}
+
+              <p className="mt-2">
+                {appointment.paymentInstructions ||
+                  'Please complete the payment with the clinic. Your appointment is confirmed once the clinic verifies it, and you will then receive the details by email.'}
               </p>
             </div>
           )}

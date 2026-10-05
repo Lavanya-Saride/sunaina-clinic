@@ -6,9 +6,16 @@ export function notFound(req, res) {
 }
 
 export function errorHandler(err, req, res, next) {
+  const mayContainData = ['ValidationError', 'CastError', 'MongoServerError', 'MongoBulkWriteError', 'StrictModeError'].includes(err?.name);
+
   console.error(
-    `[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`,
-    err
+    `[${new Date().toISOString()}] ${req.method} ${req.path}`,
+    {
+      name: err?.name,
+      code: err?.code,
+      status: err?.status,
+      ...(mayContainData ? {} : { message: err?.message }),
+    }
   );
 
   if (err?.name === 'ValidationError') {

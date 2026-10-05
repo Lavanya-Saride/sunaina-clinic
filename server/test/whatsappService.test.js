@@ -1,141 +1,78 @@
-import { test, describe, mock, afterEach } from 'node:test';
+import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { installFakeExternalApis } from './helpers/externalApis.js';
+import {
+  isWhatsAppConfigured,
+  sendClinicAlertWhatsApp,
+  sendPatientConfirmationWhatsApp,
+  sendPatientFeedbackWhatsApp,
+} from '../services/whatsappService.js';
 
 const ORIGINAL_ENV = { ...process.env };
+const fake = installFakeExternalApis();
 
-function setWhatsAppEnv(overrides = {}) {
-  process.env.WHATSAPP_PHONE_NUMBER_ID = 'phone_id_1';
-  process.env.WHATSAPP_ACCESS_TOKEN = 'token_1';
-  process.env.WHATSAPP_CLINIC_NUMBER = '9876500000';
-  Object.assign(process.env, overrides);
-}
+const appointment = {
+  appointmentNumber: 'SC20991201ABC123',
+  appointmentDate: '2099-12-01',
+  timeSlot: '10:00 AM',
+  consultationType: 'virtual',
+  meetUrl: 'https://meet.google.com/abc-defg-hij',
+  fullName: 'Asha Verma',
+};
 
-function restoreEnv() {
-  process.env = { ...ORIGINAL_ENV };
-}
+describe('whatsappService (Graph API faked, no real network call)', () => {
+  beforeEach(() => {
+    process.env = {
+      ...ORIGINAL_ENV,
+      WHATSAPP_PHONE_NUMBER_ID: '123',
+      WHATSAPP_ACCESS_TOKEN: 'token',
+      WHATSAPP_CLINIC_NUMBER: '9111111111',
+    };
+    fake.reset();
+  });
 
-function makeAppointment(overrides = {}) {
-  return {
-    appointmentNumber: 'SC20261201ABCDEF',
-    appointmentDate: '2026-12-01',
-    timeSlot: '10:00 AM',
-    consultationType: 'offline',
-    fullName: 'Asha Verma',
-    phoneNumber: '9876543210',
-    email: 'asha@example.com',
-    fee: 500,
-    meetUrl: '',
-    ...overrides,
-  };
-}
-
-describe('whatsappService', () => {
   afterEach(() => {
-    restoreEnv();
-    mock.reset();
+    process.env = { ...ORIGINAL_ENV };
   });
 
-  test('throws when WhatsApp credentials are not configured', async () => {
-    setWhatsAppEnv({ WHATSAPP_PHONE_NUMBER_ID: '', WHATSAPP_ACCESS_TOKEN: '' });
-
-    const { sendPatientAppointmentWhatsApp } = await import(
-      `../services/whatsappService.js?t=${Date.now()}-1`
-    );
-
-    await assert.rejects(
-      () => sendPatientAppointmentWhatsApp(makeAppointment()),
-      /WhatsApp credentials are not fully configured/
-    );
+  test('reports unconfigured when credentials are missing', () => {
+    delete process.env.WHATSAPP_ACCESS_TOKEN;
+    assert.equal(isWhatsAppConfigured(), false);
   });
 
-  test('sends a clinic-consultation message to the patient with directions, normalizing a 10-digit number', async () => {
-    setWhatsAppEnv();
-
-    const calls = [];
-    mock.method(globalThis, 'fetch', async (url, options) => {
-      calls.push({ url, options });
-      return {
-        ok: true,
-        json: async () => ({ messages: [{ id: 'wamid.1' }] }),
-      };
-    });
-
-    const { sendPatientAppointmentWhatsApp } = await import(
-      `../services/whatsappService.js?t=${Date.now()}-2`
-    );
-
-    await sendPatientAppointmentWhatsApp(makeAppointment());
-
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].url, 'https://graph.facebook.com/v20.0/phone_id_1/messages');
-    const body = JSON.parse(calls[0].options.body);
-    assert.equal(body.to, '919876543210');
-    assert.match(body.text.body, /SC20261201ABCDEF/);
-    assert.match(body.text.body, /Clinic Consultation/);
-    assert.match(body.text.body, /google\.com\/maps/);
-    assert.doesNotMatch(body.text.body, /Google Meet/);
+  test('throws when credentials are missing instead of sending', async () => {
+    delete process.env.WHATSAPP_ACCESS_TOKEN;
+    await assert.rejects(sendPatientConfirmationWhatsApp(appointment, '9876543210'), /not fully configured/);
   });
 
-  test('sends a virtual-consultation message to the clinic including the Meet link', async () => {
-    setWhatsAppEnv();
-
-    const calls = [];
-    mock.method(globalThis, 'fetch', async (url, options) => {
-      calls.push({ url, options });
-      return {
-        ok: true,
-        json: async () => ({ messages: [{ id: 'wamid.2' }] }),
-      };
-    });
-
-    const { sendClinicAppointmentWhatsApp } = await import(
-      `../services/whatsappService.js?t=${Date.now()}-3`
-    );
-
-    await sendClinicAppointmentWhatsApp(
-      makeAppointment({ consultationType: 'virtual', meetUrl: 'https://meet.google.com/abc-defg-hij' })
-    );
-
-    assert.equal(calls.length, 1);
-    const body = JSON.parse(calls[0].options.body);
-    assert.equal(body.to, '919876500000');
-    assert.match(body.text.body, /Virtual Consultation/);
-    assert.match(body.text.body, /meet\.google\.com/);
+  test('sends an approved template (not free text) and normalizes a 10-digit number', async () => {
+    await sendPatientConfirmationWhatsApp(appointment, '9876543210');
+    assert.equal(fake.state.whatsapp.length, 1);
+    assert.equal(fake.state.whatsapp[0].to, '919876543210');
+    assert.equal(fake.state.whatsapp[0].template, 'appointment_confirmation');
+    assert.ok(fake.state.whatsapp[0].parameters.includes('https://meet.google.com/abc-defg-hij'));
   });
 
-  test('throws when the provider responds with an error', async () => {
-    setWhatsAppEnv();
-
-    mock.method(globalThis, 'fetch', async () => ({
-      ok: false,
-      json: async () => ({ error: { message: 'Invalid recipient' } }),
-    }));
-
-    const { sendPatientAppointmentWhatsApp } = await import(
-      `../services/whatsappService.js?t=${Date.now()}-4`
-    );
-
-    await assert.rejects(
-      () => sendPatientAppointmentWhatsApp(makeAppointment()),
-      /Invalid recipient/
-    );
+  test('template parameters contain no payment or medical details', async () => {
+    await sendPatientConfirmationWhatsApp(appointment, '9876543210');
+    const joined = fake.state.whatsapp[0].parameters.join(' ').toLowerCase();
+    assert.equal(/payment|rs\.|₹|diagnos|pregnan/.test(joined), false);
   });
 
-  test('returns null for the clinic message when WHATSAPP_CLINIC_NUMBER is not set', async () => {
-    setWhatsAppEnv({ WHATSAPP_CLINIC_NUMBER: '' });
+  test('feedback request sends the feedback template with the link', async () => {
+    await sendPatientFeedbackWhatsApp(appointment, '9876543210', 'https://x.test/feedback');
+    assert.equal(fake.state.whatsapp[0].template, 'feedback_request');
+    assert.deepEqual(fake.state.whatsapp[0].parameters, ['Asha Verma', 'https://x.test/feedback']);
+  });
 
-    let called = false;
-    mock.method(globalThis, 'fetch', async () => {
-      called = true;
-      return { ok: true, json: async () => ({}) };
-    });
+  test('clinic alert returns null when no clinic number is configured', async () => {
+    delete process.env.WHATSAPP_CLINIC_NUMBER;
+    assert.equal(await sendClinicAlertWhatsApp(appointment), null);
+    assert.equal(fake.state.whatsapp.length, 0);
+  });
 
-    const { sendClinicAppointmentWhatsApp } = await import(
-      `../services/whatsappService.js?t=${Date.now()}-5`
-    );
-
-    const result = await sendClinicAppointmentWhatsApp(makeAppointment());
-    assert.equal(result, null);
-    assert.equal(called, false);
+  test('throws when the provider rejects the message', async () => {
+    fake.state.failWhatsApp = true;
+    await assert.rejects(sendPatientConfirmationWhatsApp(appointment, '9876543210'), /Template not approved/);
   });
 });

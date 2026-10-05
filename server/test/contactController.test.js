@@ -60,7 +60,6 @@ describe('contactController.requestCallback', () => {
     assert.equal(res.body.data.id, 'cb_1');
 
     assert.equal(emailCalls.length, 1);
-    assert.equal(emailCalls[0].idempotencyKey, 'callback-cb_1');
     assert.equal(emailCalls[0].name, 'Asha Verma');
   });
 

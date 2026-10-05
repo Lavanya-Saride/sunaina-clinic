@@ -1,34 +1,29 @@
-import { Resend } from 'resend';
+import { randomBytes } from 'node:crypto';
 import { CLINIC_MAPS_URL, getSlotEndLabel } from '../config/appointmentConfig.js';
+import { getGoogleAccessToken } from './googleAuth.js';
+import { formatDisplayDate } from '../utils/appointmentTime.js';
 
-let resendClient = null;
+const GMAIL_SEND_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
+const CLINIC_NAME = 'Sunaina Clinic';
 
-function getResendClient() {
-  if (resendClient) return resendClient;
+const MAILBOX_DEFAULTS = {
+  appointments: ['EMAIL_APPOINTMENTS', 'appointments@sunaina-clinic.com'],
+  support: ['EMAIL_SUPPORT', 'support@sunaina-clinic.com'],
+};
 
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-
-  if (!apiKey) {
-    throw new Error('RESEND_API_KEY is not configured.');
-  }
-
-  resendClient = new Resend(apiKey);
-  return resendClient;
+export function getCompanyDomain() {
+  return (process.env.COMPANY_EMAIL_DOMAIN?.trim() || 'sunaina-clinic.com').toLowerCase();
 }
 
-function getEmailConfig() {
-  const from = process.env.RESEND_FROM?.trim();
-  const clinicEmail = process.env.CLINIC_EMAIL?.trim();
+export function getMailbox(name) {
+  const [envKey, fallback] = MAILBOX_DEFAULTS[name];
+  const address = (process.env[envKey]?.trim() || fallback).toLowerCase();
 
-  if (!from) {
-    throw new Error('RESEND_FROM is not configured.');
+  if (!address.endsWith(`@${getCompanyDomain()}`)) {
+    throw new Error(`${envKey} must be a ${getCompanyDomain()} address.`);
   }
 
-  if (!clinicEmail) {
-    throw new Error('CLINIC_EMAIL is not configured.');
-  }
-
-  return { from, clinicEmail };
+  return address;
 }
 
 function escapeHtml(value = '') {
@@ -36,154 +31,257 @@ function escapeHtml(value = '') {
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
-    .replaceAll('\"', '&quot;')
+    .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 }
 
-function getAppointmentDetails(appointment) {
-  const type = appointment.consultationType === 'virtual' ? 'Virtual Consultation' : 'Clinic Consultation';
-  const endLabel = getSlotEndLabel(appointment.timeSlot);
-  const isVirtual = appointment.consultationType === 'virtual';
-  const meetLine = appointment.meetUrl
-    ? `Join Google Meet: ${appointment.meetUrl}`
-    : 'Your Google Meet link will be shared shortly.';
-  const directionsLine = `Get Directions: ${CLINIC_MAPS_URL}`;
-
-  return {
-    type,
-    isVirtual,
-    endLabel,
-    meetLine,
-    directionsLine,
-    subject: `Appointment Confirmed - ${appointment.appointmentDate} ${appointment.timeSlot}`,
-  };
+function stripLineBreaks(value) {
+  return String(value).replace(/[\r\n]+/g, ' ').trim();
 }
 
-export async function sendAppointmentConfirmationToPatient(appointment, idempotencyKey) {
-  const { from } = getEmailConfig();
-  if (!appointment.email) return null;
+function encodeHeader(value) {
+  return `=?UTF-8?B?${Buffer.from(stripLineBreaks(value), 'utf8').toString('base64')}?=`;
+}
 
-  const resend = getResendClient();
-  const { type, isVirtual, endLabel, meetLine, directionsLine, subject } = getAppointmentDetails(appointment);
-  const name = escapeHtml(appointment.fullName);
-  const date = escapeHtml(appointment.appointmentDate);
-  const time = escapeHtml(appointment.timeSlot);
-  const endTime = escapeHtml(endLabel);
-  const appointmentNumber = escapeHtml(appointment.appointmentNumber);
-  const fee = escapeHtml(appointment.fee);
-  const sendOptions = idempotencyKey ? { idempotencyKey } : undefined;
-  const payload = {
-    from,
-    to: [appointment.email],
-    subject,
-    text: `
-Your appointment has been confirmed.
+function encodeBody(value) {
+  return Buffer.from(value, 'utf8')
+    .toString('base64')
+    .replace(/(.{76})/g, '$1\r\n');
+}
 
-Doctor: Dr. Priyanka Singh
-Consultation: ${type}
-Date: ${appointment.appointmentDate}
-Time: ${appointment.timeSlot} - ${endLabel}
-Amount Paid: ₹${appointment.fee}
-Appointment Number: ${appointment.appointmentNumber}
+function assertRecipient(address) {
+  if (!/^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/.test(address)) {
+    throw new Error('Recipient email address is invalid.');
+  }
+}
 
-${isVirtual ? meetLine : directionsLine}
-    `.trim(),
-    html: `
-      <h2>Appointment Confirmed</h2>
-      <p>Your appointment has been confirmed.</p>
-      <p>
-        <strong>Doctor:</strong> Dr. Priyanka Singh<br />
-        <strong>Consultation:</strong> ${type}<br />
-        <strong>Date:</strong> ${date}<br />
-        <strong>Time:</strong> ${time} - ${endTime}<br />
-        <strong>Amount Paid:</strong> ₹${fee}<br />
-        <strong>Appointment Number:</strong> ${appointmentNumber}
-      </p>
-      ${isVirtual
-        ? (appointment.meetUrl ? `<p><strong>Google Meet:</strong> <a href="${appointment.meetUrl}">Join Consultation</a></p>` : '<p>Your Google Meet link will be shared shortly.</p>')
-        : `<p><strong>Directions:</strong> <a href="${CLINIC_MAPS_URL}">Get Directions to Sunaina Clinic</a></p>`}
-    `.trim(),
-  };
+export function buildMimeMessage({ from, to, subject, text, html }) {
+  assertRecipient(to);
+  const boundary = `sc_${randomBytes(12).toString('hex')}`;
 
-  const { data, error } = await resend.emails.send(payload, sendOptions);
-  if (error) throw new Error(error.message || 'Unable to send patient confirmation email.');
-  if (!data?.id) throw new Error('Resend did not return an email ID.');
+  return [
+    `From: ${encodeHeader(CLINIC_NAME)} <${from}>`,
+    `To: ${to}`,
+    `Subject: ${encodeHeader(subject)}`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    encodeBody(text),
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    encodeBody(html),
+    `--${boundary}--`,
+    '',
+  ].join('\r\n');
+}
+
+export async function sendMail({ from, to, subject, text, html }) {
+  const accessToken = await getGoogleAccessToken();
+  const raw = Buffer.from(buildMimeMessage({ from, to, subject, text, html }), 'utf8').toString('base64url');
+
+  const response = await fetch(GMAIL_SEND_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ raw }),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const error = new Error(data?.error?.message || 'Unable to send email.');
+    error.status = response.status;
+    throw error;
+  }
+
+  if (!data?.id) {
+    throw new Error('Gmail did not return a message ID.');
+  }
+
   return data;
 }
 
-export async function sendAppointmentConfirmationToClinic(appointment, idempotencyKey) {
-  const { from, clinicEmail } = getEmailConfig();
-  const resend = getResendClient();
-  const { type, isVirtual, endLabel } = getAppointmentDetails(appointment);
-  const name = escapeHtml(appointment.fullName);
-  const phone = escapeHtml(appointment.phoneNumber);
-  const email = escapeHtml(appointment.email);
-  const appointmentNumber = escapeHtml(appointment.appointmentNumber);
-  const date = escapeHtml(appointment.appointmentDate);
-  const time = escapeHtml(appointment.timeSlot);
-  const endTime = escapeHtml(endLabel);
-  const fee = escapeHtml(appointment.fee);
-  const paymentId = escapeHtml(appointment.paymentId);
-  const sendOptions = idempotencyKey ? { idempotencyKey } : undefined;
-  const payload = {
-    from,
-    to: [clinicEmail],
-    subject: 'New Paid Appointment',
+function getDetails(appointment) {
+  const isVirtual = appointment.consultationType === 'virtual';
+
+  return {
+    isVirtual,
+    type: isVirtual ? 'Virtual Consultation' : 'Clinic Consultation',
+    date: formatDisplayDate(appointment.appointmentDate),
+    timeRange: `${appointment.timeSlot} - ${getSlotEndLabel(appointment.timeSlot)}`,
+    amount: appointment.paymentAmount ?? appointment.fee,
+  };
+}
+
+function buildLocationLine(appointment, isVirtual) {
+  if (isVirtual) {
+    return appointment.meetUrl
+      ? { text: `Join Google Meet: ${appointment.meetUrl}`, html: `<p><strong>Google Meet:</strong> <a href="${escapeHtml(appointment.meetUrl)}">Join Consultation</a></p>` }
+      : { text: 'Your Google Meet link will be shared shortly.', html: '<p>Your Google Meet link will be shared shortly.</p>' };
+  }
+
+  return {
+    text: `Get Directions: ${CLINIC_MAPS_URL}`,
+    html: `<p><strong>Directions:</strong> <a href="${escapeHtml(CLINIC_MAPS_URL)}">Get Directions to Sunaina Clinic</a></p>`,
+  };
+}
+
+function buildPatientMessage(appointment, { heading, intro, showPayment }) {
+  const { isVirtual, type, date, timeRange, amount } = getDetails(appointment);
+  const location = buildLocationLine(appointment, isVirtual);
+  const paymentText = showPayment ? `\nAmount Paid: ₹${amount}` : '';
+  const paymentHtml = showPayment ? `<strong>Amount Paid:</strong> ₹${escapeHtml(amount)}<br />` : '';
+
+  return {
     text: `
-A new paid appointment has been confirmed.
+${intro}
+
+Doctor: Dr. Priyanka Singh
+Consultation: ${type}
+Date: ${date}
+Time: ${timeRange}${paymentText}
+Appointment Number: ${appointment.appointmentNumber}
+
+${location.text}
+    `.trim(),
+    html: `
+      <h2>${escapeHtml(heading)}</h2>
+      <p>${escapeHtml(intro)}</p>
+      <p>
+        <strong>Doctor:</strong> Dr. Priyanka Singh<br />
+        <strong>Consultation:</strong> ${type}<br />
+        <strong>Date:</strong> ${escapeHtml(date)}<br />
+        <strong>Time:</strong> ${escapeHtml(timeRange)}<br />
+        ${paymentHtml}
+        <strong>Appointment Number:</strong> ${escapeHtml(appointment.appointmentNumber)}
+      </p>
+      ${location.html}
+    `.trim(),
+  };
+}
+
+export async function sendAppointmentConfirmationToPatient(appointment) {
+  if (!appointment.email) return null;
+
+  const content = buildPatientMessage(appointment, {
+    heading: 'Appointment Confirmed',
+    intro: 'Your appointment has been confirmed.',
+    showPayment: true,
+  });
+
+  return sendMail({
+    from: getMailbox('appointments'),
+    to: appointment.email,
+    subject: `Appointment Confirmed - ${appointment.appointmentDate} ${appointment.timeSlot}`,
+    ...content,
+  });
+}
+
+export async function sendAppointmentReminderToPatient(appointment) {
+  if (!appointment.email) return null;
+
+  const content = buildPatientMessage(appointment, {
+    heading: 'Appointment Reminder',
+    intro: 'This is a reminder for your upcoming appointment at Sunaina Clinic.',
+    showPayment: false,
+  });
+
+  return sendMail({
+    from: getMailbox('appointments'),
+    to: appointment.email,
+    subject: `Appointment Reminder - ${appointment.appointmentDate} ${appointment.timeSlot}`,
+    ...content,
+  });
+}
+
+export async function sendFeedbackRequestToPatient(appointment, feedbackUrl) {
+  if (!appointment.email) return null;
+
+  const name = appointment.fullName;
+
+  return sendMail({
+    from: getMailbox('appointments'),
+    to: appointment.email,
+    subject: 'How was your visit to Sunaina Clinic?',
+    text: `
+Dear ${name},
+
+Thank you for visiting Sunaina Clinic. We would be grateful if you could share your experience with us.
+
+Share your feedback: ${feedbackUrl}
+    `.trim(),
+    html: `
+      <h2>Thank you for visiting Sunaina Clinic</h2>
+      <p>Dear ${escapeHtml(name)},</p>
+      <p>We would be grateful if you could share your experience with us.</p>
+      <p><a href="${escapeHtml(feedbackUrl)}">Share your feedback</a></p>
+    `.trim(),
+  });
+}
+
+export async function sendAppointmentConfirmationToClinic(appointment) {
+  const { isVirtual, type, date, timeRange, amount } = getDetails(appointment);
+  const method = appointment.paymentMethod || 'N/A';
+  const reference = appointment.paymentReference || 'N/A';
+  const meetValue = appointment.meetUrl || 'Not available';
+  const locationText = isVirtual ? `Google Meet: ${meetValue}` : `Directions: ${CLINIC_MAPS_URL}`;
+  const locationHtml = isVirtual
+    ? `<strong>Google Meet:</strong> ${appointment.meetUrl ? `<a href="${escapeHtml(appointment.meetUrl)}">Join Consultation</a>` : 'Not available'}`
+    : `<strong>Directions:</strong> <a href="${escapeHtml(CLINIC_MAPS_URL)}">Get Directions to Sunaina Clinic</a>`;
+
+  return sendMail({
+    from: getMailbox('appointments'),
+    to: getMailbox('appointments'),
+    subject: 'New Confirmed Appointment',
+    text: `
+A new appointment has been confirmed.
 
 Appointment Number: ${appointment.appointmentNumber}
 Patient: ${appointment.fullName}
 Phone: ${appointment.phoneNumber}
-Email: ${appointment.email}
+Email: ${appointment.email || 'N/A'}
 Consultation: ${type}
-Date: ${appointment.appointmentDate}
-Time: ${appointment.timeSlot} - ${endLabel}
-Amount Paid: ₹${appointment.fee}
-Payment ID: ${appointment.paymentId}
-Payment Status: PAID
-${isVirtual ? `Google Meet: ${appointment.meetUrl || 'Not available'}` : `Directions: ${CLINIC_MAPS_URL}`}
+Date: ${date}
+Time: ${timeRange}
+Amount Paid: ₹${amount}
+Payment Method: ${method}
+Payment Reference: ${reference}
+${locationText}
     `.trim(),
     html: `
-      <h2>New Paid Appointment</h2>
-      <p>A new paid appointment has been confirmed.</p>
+      <h2>New Confirmed Appointment</h2>
+      <p>A new appointment has been confirmed.</p>
       <p>
-        <strong>Appointment Number:</strong> ${appointmentNumber}<br />
-        <strong>Patient:</strong> ${name}<br />
-        <strong>Phone:</strong> ${phone}<br />
-        <strong>Email:</strong> ${email}<br />
+        <strong>Appointment Number:</strong> ${escapeHtml(appointment.appointmentNumber)}<br />
+        <strong>Patient:</strong> ${escapeHtml(appointment.fullName)}<br />
+        <strong>Phone:</strong> ${escapeHtml(appointment.phoneNumber)}<br />
+        <strong>Email:</strong> ${escapeHtml(appointment.email || 'N/A')}<br />
         <strong>Consultation:</strong> ${type}<br />
-        <strong>Date:</strong> ${date}<br />
-        <strong>Time:</strong> ${time} - ${endTime}<br />
-        <strong>Amount Paid:</strong> ₹${fee}<br />
-        <strong>Payment ID:</strong> ${paymentId}<br />
-        <strong>Payment Status:</strong> PAID<br />
-        ${isVirtual
-          ? `<strong>Google Meet:</strong> ${appointment.meetUrl ? `<a href="${appointment.meetUrl}">Join Consultation</a>` : 'Not available'}`
-          : `<strong>Directions:</strong> <a href="${CLINIC_MAPS_URL}">Get Directions to Sunaina Clinic</a>`}
+        <strong>Date:</strong> ${escapeHtml(date)}<br />
+        <strong>Time:</strong> ${escapeHtml(timeRange)}<br />
+        <strong>Amount Paid:</strong> ₹${escapeHtml(amount)}<br />
+        <strong>Payment Method:</strong> ${escapeHtml(method)}<br />
+        <strong>Payment Reference:</strong> ${escapeHtml(reference)}<br />
+        ${locationHtml}
       </p>
     `.trim(),
-  };
-
-  const { data, error } = await resend.emails.send(payload, sendOptions);
-  if (error) throw new Error(error.message || 'Unable to send clinic confirmation email.');
-  if (!data?.id) throw new Error('Resend did not return an email ID.');
-  return data;
+  });
 }
 
-export async function sendCallbackRequest({ name, phone, idempotencyKey }) {
-  const { from, clinicEmail } = getEmailConfig();
-  const resend = getResendClient();
-  const payload = {
-    from,
-    to: [clinicEmail],
+export async function sendCallbackRequest({ name, phone }) {
+  return sendMail({
+    from: getMailbox('support'),
+    to: getMailbox('support'),
     subject: 'Patient Callback Request',
     text: `A patient has requested a callback.\n\nName: ${name}\nPhone: ${phone}`,
-    html: `<h2>Patient Callback Request</h2><p>A patient has requested a callback.</p><p><strong>Name:</strong> ${name}<br /><strong>Phone:</strong> ${phone}</p>`,
-  };
-  const sendOptions = idempotencyKey ? { idempotencyKey } : undefined;
-  const { data, error } = await resend.emails.send(payload, sendOptions);
-  if (error) throw new Error(error.message || 'Unable to send callback email.');
-  if (!data?.id) throw new Error('Resend did not return an email ID.');
-  return data;
+    html: `<h2>Patient Callback Request</h2><p>A patient has requested a callback.</p><p><strong>Name:</strong> ${escapeHtml(name)}<br /><strong>Phone:</strong> ${escapeHtml(phone)}</p>`,
+  });
 }
