@@ -1218,27 +1218,6 @@ export default function AppointmentForm() {
             </div>
           </div>
 
-          <label
-            htmlFor="whatsappOptIn"
-            className="flex min-h-11 cursor-pointer items-start gap-3 text-[clamp(0.72rem,1.7vw,0.8rem)] leading-relaxed text-ink/80"
-          >
-            <input
-              id="whatsappOptIn"
-              name="whatsappOptIn"
-              type="checkbox"
-              checked={
-                formData.whatsappOptIn
-              }
-              onChange={handleChange}
-              className="mt-0.5 h-5 w-5 shrink-0 accent-maroon"
-            />
-
-            <span>
-              {appointment.whatsappConsent ||
-                'Send my appointment confirmation, reminder and feedback request on WhatsApp'}
-            </span>
-          </label>
-
           {displayedMessage && (
             <div
               role="alert"
