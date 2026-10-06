@@ -6,11 +6,14 @@ import {
   handleAppointmentValidationErrors,
   rejectUnknownAppointmentFields,
 } from '../middleware/appointmentValidator.js';
-import { submitAppointmentLimiter } from '../middleware/rateLimiter.js';
+import { noStore } from '../middleware/cacheControl.js';
+import { publicReadLimiter, submitAppointmentLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
 
-router.get('/booked-slots', bookedSlotsQueryRules, handleAppointmentValidationErrors, getBookedSlots);
+router.use(noStore);
+
+router.get('/booked-slots', publicReadLimiter, bookedSlotsQueryRules, handleAppointmentValidationErrors, getBookedSlots);
 router.post('/', submitAppointmentLimiter, rejectUnknownAppointmentFields, appointmentValidationRules, handleAppointmentValidationErrors, createAppointment);
 
 export default router;

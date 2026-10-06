@@ -17,8 +17,8 @@ export default function Footer() {
           <div className="min-w-0 text-center md:text-left">
             <div className="mb-4 flex items-center justify-center md:justify-start">
               <Link to="/" className="flex min-w-0 items-center" aria-label={`${CLINIC.name} home`}>
-                <img src={logo} alt={`${CLINIC.name} logo`} className="h-10 w-10 shrink-0 object-contain xs:h-12 xs:w-12 sm:h-[52px] sm:w-[52px] lg:h-[56px] lg:w-[56px]" />
-                <img src={title} alt={CLINIC.name} className="-ml-[5px] h-6 w-auto shrink-0 object-contain xs:h-7 sm:-ml-[8px] sm:h-8 lg:-ml-[10px] lg:h-9" />
+                <img src={logo} alt={`${CLINIC.name} logo`} loading="lazy" decoding="async" className="h-10 w-10 shrink-0 object-contain xs:h-12 xs:w-12 sm:h-[52px] sm:w-[52px] lg:h-[56px] lg:w-[56px]" />
+                <img src={title} alt={CLINIC.name} loading="lazy" decoding="async" className="-ml-[5px] h-6 w-auto shrink-0 object-contain xs:h-7 sm:-ml-[8px] sm:h-8 lg:-ml-[10px] lg:h-9" />
               </Link>
             </div>
 

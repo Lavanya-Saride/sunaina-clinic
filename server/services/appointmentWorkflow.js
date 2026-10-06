@@ -1,7 +1,11 @@
 import Appointment from '../models/Appointment.js';
 import Patient from '../models/Patient.js';
 import { canReceiveWhatsApp } from './patientService.js';
-import { cancelAppointmentEvent, createAppointmentEvent } from './googleCalendarService.js';
+import {
+  cancelAppointmentEvent,
+  createAppointmentEvent,
+  getAppointmentEventId,
+} from './googleCalendarService.js';
 import {
   sendAppointmentConfirmationToClinic,
   sendAppointmentConfirmationToPatient,
@@ -14,6 +18,9 @@ import {
   sendPatientFeedbackWhatsApp,
   sendPatientReminderWhatsApp,
 } from './whatsappService.js';
+import { recordProviderFailure, recordProviderSuccess } from '../utils/alerts.js';
+import { logEvent } from '../utils/logger.js';
+import { RECIPIENT_NOT_ALLOWED } from '../utils/recipientPolicy.js';
 
 export class WorkflowError extends Error {
   constructor(message, status = 409) {
@@ -23,22 +30,49 @@ export class WorkflowError extends Error {
   }
 }
 
-const STALE_CLAIM_MS = 5 * 60 * 1000;
+export const STALE_CLAIM_MS = 5 * 60 * 1000;
+const STEP_FIELDS = [
+  'calendarStatus',
+  'patientEmailStatus',
+  'clinicEmailStatus',
+  'patientWhatsappStatus',
+  'clinicWhatsappStatus',
+  'reminderEmailStatus',
+  'reminderWhatsappStatus',
+  'feedbackEmailStatus',
+  'feedbackWhatsappStatus',
+];
 const AUTO_RETRYABLE = ['PENDING', 'FAILED', null];
 const MANUAL_RETRYABLE = ['PENDING', 'FAILED', 'SKIPPED', null];
 
 export const SKIPPED = Symbol('skipped');
 
-function getFeedbackUrl() {
-  const base = (process.env.CLIENT_URL || '').split(',')[0].trim().replace(/\/$/, '');
+const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i;
+
+export function getFeedbackUrl() {
+  const origins = (process.env.CLIENT_URL || '')
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+  const base = origins.find((origin) => !LOCAL_ORIGIN.test(origin)) || origins[0];
   return `${base || 'https://sunaina-clinic.vercel.app'}/feedback`;
 }
 
-function logFailure(label, error) {
-  console.error(label, { message: error.message, status: error.status });
+function providerFor(field) {
+  if (field === 'calendarStatus') return 'calendar';
+  return field.endsWith('EmailStatus') ? 'gmail' : 'whatsapp';
 }
 
-async function claimStep(id, field, manual) {
+function logFailure(event, error, fields = {}) {
+  logEvent('error', event, {
+    ...fields,
+    status: error.status,
+    code: error.code,
+    message: error.message,
+  });
+}
+
+async function claimStep(id, field, manual, requiredStatus) {
   const retryable = manual ? MANUAL_RETRYABLE : AUTO_RETRYABLE;
   const clauses = [{ [field]: { $in: retryable } }];
 
@@ -46,30 +80,99 @@ async function claimStep(id, field, manual) {
     clauses.push({ [field]: 'SENDING', updatedAt: { $lt: new Date(Date.now() - STALE_CLAIM_MS) } });
   }
 
+  const filter = { _id: id, $or: clauses };
+
+  if (requiredStatus) {
+    filter.status = requiredStatus;
+  }
+
   return Appointment.findOneAndUpdate(
-    { _id: id, $or: clauses },
+    filter,
     { $set: { [field]: 'SENDING' } },
     { returnDocument: 'after' }
   );
 }
 
-async function runStep(id, field, manual, action, doneStatus = 'SENT') {
-  const claimed = await claimStep(id, field, manual);
+async function runStep(id, field, manual, action, { doneStatus = 'SENT', requiredStatus } = {}) {
+  const claimed = await claimStep(id, field, manual, requiredStatus);
 
   if (!claimed) {
     return null;
   }
 
+  const provider = providerFor(field);
+
   try {
     const outcome = await action(claimed);
-    const status = outcome === SKIPPED ? 'SKIPPED' : doneStatus;
-    await Appointment.updateOne({ _id: id }, { $set: { [field]: status } });
+    let status = doneStatus;
+
+    if (outcome === SKIPPED) {
+      status = 'SKIPPED';
+    } else if (typeof outcome === 'string') {
+      status = outcome;
+    }
+
+    await Appointment.updateOne({ _id: id, [field]: 'SENDING' }, { $set: { [field]: status } });
+
+    if (status !== 'SKIPPED') {
+      recordProviderSuccess(provider);
+    }
+
     return status;
   } catch (error) {
-    logFailure(`APPOINTMENT STEP FAILED [${field}]`, error);
-    await Appointment.updateOne({ _id: id }, { $set: { [field]: 'FAILED' } });
+    if (error.code === RECIPIENT_NOT_ALLOWED) {
+      logEvent('info', 'outbound.recipient_blocked', { step: field, provider });
+      await Appointment.updateOne({ _id: id, [field]: 'SENDING' }, { $set: { [field]: 'SKIPPED' } });
+      return 'SKIPPED';
+    }
+
+    logFailure('appointment.step_failed', error, {
+      step: field,
+      provider,
+      appointmentId: String(id),
+      outcomeUnknown: error.code === 'PROVIDER_TIMEOUT',
+    });
+    recordProviderFailure(provider, { step: field });
+    await Appointment.updateOne({ _id: id, [field]: 'SENDING' }, { $set: { [field]: 'FAILED' } });
     return 'FAILED';
   }
+}
+
+export async function recoverStaleSteps(now = new Date()) {
+  const cutoff = new Date(now.getTime() - STALE_CLAIM_MS);
+
+  const stuck = await Appointment.find({
+    updatedAt: { $lt: cutoff },
+    $or: STEP_FIELDS.map((field) => ({ [field]: 'SENDING' })),
+  })
+    .select(STEP_FIELDS.join(' '))
+    .limit(100)
+    .lean();
+
+  let recovered = 0;
+
+  for (const doc of stuck) {
+    for (const field of STEP_FIELDS) {
+      if (doc[field] !== 'SENDING') continue;
+
+      const result = await Appointment.updateOne(
+        { _id: doc._id, [field]: 'SENDING', updatedAt: { $lt: cutoff } },
+        { $set: { [field]: 'FAILED' } },
+        { timestamps: false }
+      );
+
+      if (result.modifiedCount > 0) {
+        recovered += 1;
+        logEvent('warn', 'appointment.stale_step_recovered', {
+          appointmentId: String(doc._id),
+          step: field,
+          outcomeUnknown: true,
+        });
+      }
+    }
+  }
+
+  return recovered;
 }
 
 async function loadPatient(appointment) {
@@ -89,12 +192,14 @@ async function syncCalendar(id, manual) {
         return undefined;
       }
 
+      let created;
+
       try {
-        const { eventId, meetUrl } = await createAppointmentEvent(appointment);
-        const update = { googleEventId: eventId };
+        created = await createAppointmentEvent(appointment);
+        const update = { googleEventId: created.eventId };
 
         if (isVirtual) {
-          update.meetUrl = meetUrl;
+          update.meetUrl = created.meetUrl;
           update.meetingStatus = 'READY';
 
           if (appointment.patientEmailStatus === 'SENT') update.patientEmailStatus = 'PENDING';
@@ -102,7 +207,6 @@ async function syncCalendar(id, manual) {
         }
 
         await Appointment.updateOne({ _id: appointment._id }, { $set: update });
-        return undefined;
       } catch (error) {
         const update = {};
         if (error.eventId) update.googleEventId = error.eventId;
@@ -114,26 +218,47 @@ async function syncCalendar(id, manual) {
 
         throw error;
       }
+
+      const latest = await Appointment.findById(appointment._id).select('status').lean();
+
+      if (latest?.status === 'CANCELLED') {
+        await cancelAppointmentEvent(created.eventId);
+        return 'CANCELLED';
+      }
+
+      return undefined;
     },
-    'READY'
+    { doneStatus: 'READY', requiredStatus: 'CONFIRMED' }
   );
 }
 
-async function sendPatientEmail(id, field, manual, sender) {
-  return runStep(id, field, manual, async (appointment) => {
-    if (!appointment.email) return SKIPPED;
-    await sender(appointment);
-    return undefined;
-  });
+async function sendPatientEmail(id, field, manual, requiredStatus, sender) {
+  return runStep(
+    id,
+    field,
+    manual,
+    async (appointment) => {
+      if (!appointment.email) return SKIPPED;
+      await sender(appointment);
+      return undefined;
+    },
+    { requiredStatus }
+  );
 }
 
-async function sendPatientWhatsApp(id, field, manual, sender) {
-  return runStep(id, field, manual, async (appointment) => {
-    const patient = await loadPatient(appointment);
-    if (!canReceiveWhatsApp(patient)) return SKIPPED;
-    await sender(appointment, patient.whatsappNumber);
-    return undefined;
-  });
+async function sendPatientWhatsApp(id, field, manual, requiredStatus, sender) {
+  return runStep(
+    id,
+    field,
+    manual,
+    async (appointment) => {
+      const patient = await loadPatient(appointment);
+      if (!canReceiveWhatsApp(patient)) return SKIPPED;
+      await sender(appointment, patient.whatsappNumber);
+      return undefined;
+    },
+    { requiredStatus }
+  );
 }
 
 export async function runConfirmationAutomation(id, { manual = false } = {}) {
@@ -145,18 +270,30 @@ export async function runConfirmationAutomation(id, { manual = false } = {}) {
 
   await syncCalendar(id, manual);
 
-  await sendPatientEmail(id, 'patientEmailStatus', manual, sendAppointmentConfirmationToPatient);
+  await sendPatientEmail(id, 'patientEmailStatus', manual, 'CONFIRMED', sendAppointmentConfirmationToPatient);
 
-  await runStep(id, 'clinicEmailStatus', manual, async (current) => {
-    await sendAppointmentConfirmationToClinic(current);
-  });
+  await runStep(
+    id,
+    'clinicEmailStatus',
+    manual,
+    async (current) => {
+      await sendAppointmentConfirmationToClinic(current);
+    },
+    { requiredStatus: 'CONFIRMED' }
+  );
 
-  await sendPatientWhatsApp(id, 'patientWhatsappStatus', manual, sendPatientConfirmationWhatsApp);
+  await sendPatientWhatsApp(id, 'patientWhatsappStatus', manual, 'CONFIRMED', sendPatientConfirmationWhatsApp);
 
-  await runStep(id, 'clinicWhatsappStatus', manual, async (current) => {
-    const result = await sendClinicAlertWhatsApp(current);
-    return result ? undefined : SKIPPED;
-  });
+  await runStep(
+    id,
+    'clinicWhatsappStatus',
+    manual,
+    async (current) => {
+      const result = await sendClinicAlertWhatsApp(current);
+      return result ? undefined : SKIPPED;
+    },
+    { requiredStatus: 'CONFIRMED' }
+  );
 }
 
 export async function sendReminder(id, { manual = false } = {}) {
@@ -166,8 +303,8 @@ export async function sendReminder(id, { manual = false } = {}) {
     return;
   }
 
-  await sendPatientEmail(id, 'reminderEmailStatus', manual, sendAppointmentReminderToPatient);
-  await sendPatientWhatsApp(id, 'reminderWhatsappStatus', manual, sendPatientReminderWhatsApp);
+  await sendPatientEmail(id, 'reminderEmailStatus', manual, 'CONFIRMED', sendAppointmentReminderToPatient);
+  await sendPatientWhatsApp(id, 'reminderWhatsappStatus', manual, 'CONFIRMED', sendPatientReminderWhatsApp);
 }
 
 export async function requestFeedback(id, { manual = false } = {}) {
@@ -184,11 +321,11 @@ export async function requestFeedback(id, { manual = false } = {}) {
 
   const feedbackUrl = getFeedbackUrl();
 
-  await sendPatientEmail(id, 'feedbackEmailStatus', manual, (current) =>
+  await sendPatientEmail(id, 'feedbackEmailStatus', manual, 'COMPLETED', (current) =>
     sendFeedbackRequestToPatient(current, feedbackUrl)
   );
 
-  await sendPatientWhatsApp(id, 'feedbackWhatsappStatus', manual, (current, to) =>
+  await sendPatientWhatsApp(id, 'feedbackWhatsappStatus', manual, 'COMPLETED', (current, to) =>
     sendPatientFeedbackWhatsApp(current, to, feedbackUrl)
   );
 }
@@ -262,16 +399,24 @@ export async function markAttendance(id, { status, user }) {
   return Appointment.findById(id);
 }
 
+function calendarEventIdToRemove(appointment) {
+  if (appointment.googleEventId) return appointment.googleEventId;
+  return ['SENDING', 'FAILED'].includes(appointment.calendarStatus) ? getAppointmentEventId(appointment._id) : '';
+}
+
 async function removeCalendarEvent(appointment) {
-  if (!appointment.googleEventId || appointment.calendarStatus === 'CANCELLED') {
+  const eventId = calendarEventIdToRemove(appointment);
+
+  if (!eventId || appointment.calendarStatus === 'CANCELLED') {
     return;
   }
 
   try {
-    await cancelAppointmentEvent(appointment.googleEventId);
+    await cancelAppointmentEvent(eventId);
     await Appointment.updateOne({ _id: appointment._id }, { $set: { calendarStatus: 'CANCELLED' } });
   } catch (error) {
-    logFailure('CALENDAR CANCEL FAILED', error);
+    logFailure('appointment.calendar_cancel_failed', error, { appointmentId: String(appointment._id) });
+    recordProviderFailure('calendar', { step: 'calendarCancel' });
     await Appointment.updateOne({ _id: appointment._id }, { $set: { calendarStatus: 'FAILED' } });
   }
 }
@@ -325,7 +470,7 @@ export async function retryAutomation(id) {
     }
   } else if (appointment.status === 'COMPLETED') {
     await requestFeedback(id, { manual: true });
-  } else if (appointment.status === 'CANCELLED' && appointment.googleEventId) {
+  } else if (appointment.status === 'CANCELLED' && calendarEventIdToRemove(appointment)) {
     await removeCalendarEvent(appointment);
   } else {
     throw new WorkflowError('There is nothing to retry for this appointment.');

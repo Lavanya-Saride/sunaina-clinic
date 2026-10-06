@@ -109,3 +109,11 @@ export function hasFailedAutomation(appointment) {
 export function isAwaitingAttendance(appointment, now = Date.now()) {
   return appointment.status === 'CONFIRMED' && new Date(appointment.startsAt).getTime() + 30 * 60 * 1000 < now;
 }
+
+export function canRetryAutomation(appointment) {
+  if (appointment.status === 'CANCELLED') {
+    return appointment.calendarStatus === 'FAILED';
+  }
+
+  return ['CONFIRMED', 'COMPLETED'].includes(appointment.status) && hasFailedAutomation(appointment);
+}

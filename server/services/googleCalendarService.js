@@ -1,6 +1,7 @@
 import { getGoogleAccessToken } from './googleAuth.js';
 import { APPOINTMENT_DURATION_MINUTES, CLINIC_MAPS_URL } from '../config/appointmentConfig.js';
 import { getSlotEnd, getSlotStart } from '../utils/appointmentTime.js';
+import { providerFetch } from '../utils/providerFetch.js';
 
 const CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
 const MEET_POLL_ATTEMPTS = 5;
@@ -10,14 +11,18 @@ function getCalendarId() {
   return process.env.GOOGLE_CALENDAR_ID?.trim() || 'primary';
 }
 
+export function getAppointmentEventId(id) {
+  return `sc${String(id)}`;
+}
+
 function getEventId(appointment) {
-  return `sc${appointment._id.toString()}`;
+  return getAppointmentEventId(appointment._id);
 }
 
 async function calendarRequest(path, options = {}) {
   const accessToken = await getGoogleAccessToken();
 
-  const response = await fetch(`${CALENDAR_API}${path}`, {
+  const response = await providerFetch(`${CALENDAR_API}${path}`, {
     ...options,
     headers: {
       Authorization: `Bearer ${accessToken}`,

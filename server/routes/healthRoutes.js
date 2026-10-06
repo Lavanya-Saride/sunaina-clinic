@@ -13,4 +13,16 @@ router.get('/', (req, res) => {
   });
 });
 
+router.get('/ready', (req, res) => {
+  const connected = mongoose.connection.readyState === 1;
+
+  res.set('Cache-Control', 'no-store');
+  res.status(connected ? 200 : 503).json({
+    success: connected,
+    status: connected ? 'ready' : 'unavailable',
+    database: connected ? 'connected' : 'disconnected',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 export default router;

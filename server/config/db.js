@@ -1,4 +1,28 @@
 import mongoose from 'mongoose';
+import { recordProviderFailure, recordProviderSuccess } from '../utils/alerts.js';
+import { logEvent } from '../utils/logger.js';
+
+let listenersAttached = false;
+
+function attachListeners() {
+  if (listenersAttached) return;
+  listenersAttached = true;
+
+  mongoose.connection.on('error', (error) => {
+    logEvent('error', 'database.error', { name: error.name, message: error.message });
+    recordProviderFailure('database', { step: 'connection' });
+  });
+
+  mongoose.connection.on('disconnected', () => {
+    logEvent('warn', 'database.disconnected');
+    recordProviderFailure('database', { step: 'disconnected' });
+  });
+
+  mongoose.connection.on('reconnected', () => {
+    logEvent('info', 'database.reconnected');
+    recordProviderSuccess('database');
+  });
+}
 
 export default async function connectDB() {
   const uri = process.env.MONGO_URI;
@@ -8,14 +32,11 @@ export default async function connectDB() {
   }
 
   mongoose.set('strictQuery', true);
+  attachListeners();
 
   await mongoose.connect(uri, {
     serverSelectionTimeoutMS: 8000,
   });
 
-  console.log(`MongoDB connected: ${mongoose.connection.host}`);
-
-  mongoose.connection.on('error', (err) => {
-    console.error('MongoDB connection error:', err.message);
-  });
+  logEvent('info', 'database.connected');
 }

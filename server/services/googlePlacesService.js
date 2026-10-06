@@ -1,3 +1,5 @@
+import { providerFetch } from '../utils/providerFetch.js';
+
 function getGooglePlacesConfig() {
   const apiKey =
     process.env.GOOGLE_PLACES_API_KEY?.trim();
@@ -26,7 +28,7 @@ export async function getGooglePlaceDetails() {
   const url =
     `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`;
 
-  const response = await fetch(url, {
+  const response = await providerFetch(url, {
     method: 'GET',
     headers: {
       'X-Goog-Api-Key': apiKey,

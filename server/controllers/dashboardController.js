@@ -115,6 +115,7 @@ export async function createOfflineAppointment(req, res, next) {
       source: 'OFFLINE',
       whatsappOptIn: req.body.whatsappOptIn === true,
       optInSource: 'DASHBOARD',
+      recordedBy: req.user.id,
       withHold: false,
     });
 

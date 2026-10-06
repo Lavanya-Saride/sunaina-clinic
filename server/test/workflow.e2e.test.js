@@ -1,6 +1,6 @@
-import { test, describe, before, after, beforeEach } from 'node:test';
+import { test, describe, before, after, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import request from 'supertest';
 import mongoose from 'mongoose';
 import { installFakeExternalApis } from './helpers/externalApis.js';
@@ -19,6 +19,14 @@ process.env.WHATSAPP_VERIFY_TOKEN = 'verify-me';
 process.env.WHATSAPP_APP_SECRET = 'app-secret';
 process.env.WHATSAPP_BUSINESS_ACCOUNT_ID = 'waba-1';
 process.env.CLIENT_URL = 'http://localhost:5173';
+
+function databaseNameOf(uri) {
+  try {
+    return decodeURIComponent(new URL(uri).pathname.replace(/^\//, ''));
+  } catch {
+    return '';
+  }
+}
 
 const PASSWORD = 'Str0ngPassw0rdXyz';
 const fake = installFakeExternalApis();
@@ -81,7 +89,7 @@ const dbDoc = (id) => models.Appointment.findById(id).lean();
 
 describe('end-to-end workflows (real database, faked Google/WhatsApp APIs)', { skip }, () => {
   before(async () => {
-    assert.ok(/test/i.test(TEST_URI), 'TEST_MONGO_URI must point at a database whose name contains "test".');
+    assert.ok(/test/i.test(databaseNameOf(TEST_URI)), 'TEST_MONGO_URI must point at a database whose name contains "test".');
     await mongoose.connect(TEST_URI, { serverSelectionTimeoutMS: 5000 });
     await mongoose.connection.dropDatabase();
 
@@ -913,6 +921,357 @@ describe('end-to-end workflows (real database, faked Google/WhatsApp APIs)', { s
       const slots = await agent.get(`/api/appointment/booked-slots?date=${date}`);
       assert.deepEqual(slots.body.data, []);
       assert.equal((await book({ appointmentDate: date, timeSlot: '06:00 PM', phoneNumber: phone() })).status, 201);
+    });
+  });
+
+  describe('concurrency and provider-failure safety', () => {
+    const cancel = (id, role = 'CLINICIAN') =>
+      agent.post(`/api/dashboard/appointments/${id}/cancel`).set(auth(role)).send({});
+    const retry = (id, role = 'CLINICIAN') =>
+      agent.post(`/api/dashboard/appointments/${id}/retry`).set(auth(role)).send({});
+
+    test('a cancel that lands while the calendar event is being created leaves no orphan event and sends nothing', async () => {
+      const booked = await book({ email: 'race@example.com' });
+      const id = booked.body.data.appointmentId;
+      fake.reset();
+      fake.state.beforeCalendarCreate = async () => {
+        const res = await cancel(id);
+        assert.equal(res.status, 200);
+      };
+
+      const paid = await pay(id);
+      assert.equal(paid.status, 200);
+
+      const doc = await dbDoc(id);
+      assert.equal(doc.status, 'CANCELLED');
+      assert.equal(doc.calendarStatus, 'CANCELLED');
+      assert.equal(doc.slotKey, undefined);
+      assert.equal(fake.state.events.size, 0);
+      assert.equal(emailsTo('race@example.com').length, 0);
+      assert.equal(fake.state.whatsapp.filter((m) => m.template === 'appointment_confirmation').length, 0);
+    });
+
+    test('cancelling after a failed calendar create still removes any event by its deterministic id', async () => {
+      const booked = await book({ email: 'cancelfail@example.com' });
+      const id = booked.body.data.appointmentId;
+      fake.reset();
+      fake.state.failCalendar = true;
+      const paid = await pay(id);
+      assert.equal(paid.body.data.calendarStatus, 'FAILED');
+      assert.equal((await dbDoc(id)).googleEventId, '');
+
+      fake.state.failCalendar = false;
+      fake.state.calendarCalls.length = 0;
+      const cancelled = await cancel(id);
+      assert.equal(cancelled.status, 200);
+      assert.equal(cancelled.body.data.status, 'CANCELLED');
+      assert.equal(cancelled.body.data.calendarStatus, 'CANCELLED');
+      assert.ok(fake.state.calendarCalls.some((call) => call.startsWith('DELETE ') && call.includes(`/events/sc${id}`)));
+    });
+
+    test('a calendar outage during cancel keeps the appointment cancelled and the slot free, and retry finishes the removal', async () => {
+      const date = uniqueDate();
+      const booked = await book({ appointmentDate: date, timeSlot: '04:30 PM', email: 'cancelretry@example.com' });
+      const id = booked.body.data.appointmentId;
+      fake.reset();
+      await pay(id);
+      assert.equal(fake.state.events.size, 1);
+
+      fake.state.failCalendar = true;
+      const cancelled = await cancel(id);
+      assert.equal(cancelled.status, 200);
+      assert.equal(cancelled.body.data.status, 'CANCELLED');
+      assert.equal(cancelled.body.data.paymentStatus, 'PAID');
+      assert.equal(cancelled.body.data.calendarStatus, 'FAILED');
+
+      fake.state.failCalendar = false;
+      const slots = await agent.get(`/api/appointment/booked-slots?date=${date}`);
+      assert.equal(slots.body.data.includes('04:30 PM'), false);
+
+      const retried = await retry(id);
+      assert.equal(retried.status, 200);
+      assert.equal(retried.body.data.calendarStatus, 'CANCELLED');
+      assert.equal(fake.state.events.size, 0);
+      assert.equal((await retry(id)).status, 200);
+    });
+
+    test('a provider timeout marks the step failed, is logged as outcome-unknown without patient data, and a retry sends once', async () => {
+      const logs = [];
+      mock.method(console, 'error', (line) => logs.push(String(line)));
+      try {
+        const booked = await book({ email: 'timeout@example.com', whatsappOptIn: false });
+        const id = booked.body.data.appointmentId;
+        fake.reset();
+        fake.state.timeoutGmail = true;
+        const paid = await pay(id);
+        assert.equal(paid.body.data.status, 'CONFIRMED');
+        assert.equal(paid.body.data.notifications.patientEmail, 'FAILED');
+        assert.equal(emailsTo('timeout@example.com').length, 0);
+
+        const entries = logs.filter((line) => line.startsWith('{')).map((line) => JSON.parse(line));
+        const failure = entries.find((entry) => entry.event === 'appointment.step_failed' && entry.step === 'patientEmailStatus');
+        assert.ok(failure);
+        assert.equal(failure.outcomeUnknown, true);
+        assert.equal(failure.provider, 'gmail');
+        assert.equal(logs.join('\n').includes('timeout@example.com'), false);
+
+        fake.state.timeoutGmail = false;
+        const retried = await retry(id);
+        assert.equal(retried.body.data.notifications.patientEmail, 'SENT');
+        assert.equal(emailsTo('timeout@example.com').length, 1);
+        await retry(id);
+        assert.equal(emailsTo('timeout@example.com').length, 1);
+      } finally {
+        mock.restoreAll();
+      }
+    });
+
+    test('parallel wrong-password attempts cannot outrun the account lockout', { skip: !atomicDb }, async () => {
+      const source = await models.User.findOne({ email: 'staff@sunaina-clinic.com' }).select('+passwordHash');
+      await models.User.create({ name: 'Parallel', email: 'parallel@sunaina-clinic.com', role: 'STAFF', passwordHash: source.passwordHash });
+      await Promise.all(
+        Array.from({ length: 8 }, () => agent.post('/api/auth/login').send({ email: 'parallel@sunaina-clinic.com', password: 'bad-password-1A' }))
+      );
+      const locked = await models.User.findOne({ email: 'parallel@sunaina-clinic.com' }).lean();
+      assert.ok(locked.lockUntil && locked.lockUntil > new Date());
+      const res = await agent.post('/api/auth/login').send({ email: 'parallel@sunaina-clinic.com', password: PASSWORD });
+      assert.equal(res.status, 429);
+    });
+  });
+
+  describe('consent rules', () => {
+    const sendWebhook = (number, text = 'STOP', { timestamp, accountId = 'waba-1' } = {}) => {
+      const message = { from: `91${number}`, type: 'text', text: { body: text } };
+      if (timestamp !== undefined) message.timestamp = String(timestamp);
+      const raw = JSON.stringify({ entry: [{ id: accountId, changes: [{ value: { messages: [message] } }] }] });
+      const signature = `sha256=${createHmac('sha256', 'app-secret').update(raw).digest('hex')}`;
+      return agent.post('/api/whatsapp/webhook').set('Content-Type', 'application/json').set('X-Hub-Signature-256', signature).send(raw);
+    };
+    const patientFor = (number) => models.Patient.findOne({ whatsappNumber: `91${number}` }).lean();
+    const dashboardBooking = (number, extra = {}) =>
+      agent.post('/api/dashboard/appointments').set(auth('ADMIN')).send({
+        appointmentDate: uniqueDate(), timeSlot: '11:30 AM', consultationType: 'offline',
+        fullName: 'Consent Check', phoneNumber: number, email: 'consent@example.com', whatsappOptIn: true, ...extra,
+      });
+
+    test('staff recording consent in the dashboard cannot re-enable a patient who replied STOP', async () => {
+      const number = phone();
+      await book({ phoneNumber: number, whatsappOptIn: true });
+      assert.equal((await sendWebhook(number, 'STOP')).status, 200);
+      const stopped = await patientFor(number);
+      assert.equal(stopped.whatsappOptIn, false);
+      assert.ok(stopped.whatsappOptOutAt);
+
+      const created = await dashboardBooking(number);
+      assert.equal(created.status, 201);
+      assert.equal(created.body.data.whatsappOptIn, false);
+      const after = await patientFor(number);
+      assert.equal(after.whatsappOptIn, false);
+      assert.deepEqual(after.whatsappOptOutAt, stopped.whatsappOptOutAt);
+
+      const paid = await pay(created.body.data.id);
+      assert.equal(paid.body.data.notifications.patientWhatsapp, 'SKIPPED');
+    });
+
+    test('a patient who ticks the consent box on the website again gives fresh consent that is recorded', async () => {
+      const number = phone();
+      await book({ phoneNumber: number, whatsappOptIn: true });
+      await sendWebhook(number, 'STOP');
+      await book({ phoneNumber: number, whatsappOptIn: true });
+      const patient = await patientFor(number);
+      assert.equal(patient.whatsappOptIn, true);
+      assert.equal(patient.whatsappOptOutAt, null);
+      assert.equal(patient.whatsappOptInSource, 'WEBSITE_BOOKING');
+    });
+
+    test('dashboard consent for a new patient records which staff member entered it', async () => {
+      const number = phone();
+      const created = await dashboardBooking(number);
+      assert.equal(created.status, 201);
+      const admin = await models.User.findOne({ email: 'admin@sunaina-clinic.com' }).lean();
+      const patient = await patientFor(number);
+      assert.equal(patient.whatsappOptIn, true);
+      assert.equal(patient.whatsappOptInSource, 'DASHBOARD');
+      assert.equal(String(patient.whatsappOptInRecordedBy), String(admin._id));
+    });
+
+    test('opting in at booking never silently opts anyone in when the box is unticked', async () => {
+      const number = phone();
+      await book({ phoneNumber: number, whatsappOptIn: false });
+      const patient = await patientFor(number);
+      assert.equal(patient.whatsappOptIn, false);
+      assert.equal(patient.whatsappOptInAt, null);
+    });
+
+    test('STOP is recognised with punctuation, repeated deliveries are harmless, and unknown numbers are ignored', async () => {
+      const number = phone();
+      await book({ phoneNumber: number, whatsappOptIn: true });
+      assert.equal((await sendWebhook(number, 'Stop.')).status, 200);
+      const first = await patientFor(number);
+      assert.equal(first.whatsappOptIn, false);
+      assert.equal((await sendWebhook(number, 'Stop.')).status, 200);
+      assert.equal((await patientFor(number)).whatsappOptIn, false);
+      assert.equal((await sendWebhook('9000099999', 'STOP')).status, 200);
+    });
+
+    test('a delayed STOP that predates a later opt-in does not undo the newer consent', async () => {
+      const number = phone();
+      await book({ phoneNumber: number, whatsappOptIn: true });
+      const stale = Math.floor(Date.now() / 1000) - 3600;
+      assert.equal((await sendWebhook(number, 'STOP', { timestamp: stale })).status, 200);
+      assert.equal((await patientFor(number)).whatsappOptIn, true);
+      assert.equal((await sendWebhook(number, 'STOP', { timestamp: Math.floor(Date.now() / 1000) + 5 })).status, 200);
+      assert.equal((await patientFor(number)).whatsappOptIn, false);
+    });
+
+    test('events for a different WhatsApp business account are ignored', async () => {
+      const number = phone();
+      await book({ phoneNumber: number, whatsappOptIn: true });
+      assert.equal((await sendWebhook(number, 'STOP', { accountId: 'someone-else' })).status, 200);
+      assert.equal((await patientFor(number)).whatsappOptIn, true);
+    });
+  });
+
+  describe('freshness and background refresh support', () => {
+    test('polled public endpoints are never served from a stale cache', async () => {
+      const feedback = await agent.get('/api/feedback');
+      assert.equal(feedback.headers['cache-control'], 'no-cache');
+      const slots = await agent.get(`/api/appointment/booked-slots?date=${uniqueDate()}`);
+      assert.equal(slots.headers['cache-control'], 'no-store');
+    });
+
+    test('the readiness endpoint reports ready with a live database', async () => {
+      const res = await agent.get('/api/health/ready');
+      assert.equal(res.status, 200);
+      assert.equal(res.body.status, 'ready');
+    });
+
+    test('the background-poll header is allowed by CORS for the site origin', async () => {
+      const res = await agent
+        .options('/api/dashboard/appointments')
+        .set('Origin', 'http://localhost:5173')
+        .set('Access-Control-Request-Method', 'GET')
+        .set('Access-Control-Request-Headers', 'authorization,x-background-poll');
+      assert.equal(res.status, 204);
+      assert.match(res.headers['access-control-allow-headers'], /X-Background-Poll/i);
+    });
+
+    test('background polls do not extend an idle session, and an idle session still expires', async () => {
+      const login = await agent.post('/api/auth/login').send({ email: 'staff@sunaina-clinic.com', password: PASSWORD });
+      const token = login.body.data.token;
+      const tokenHash = createHash('sha256').update(token).digest('hex');
+      const poll = (withHeader) => {
+        const req = agent.get('/api/dashboard/appointments?limit=1').set({ Authorization: `Bearer ${token}` });
+        return withHeader ? req.set('X-Background-Poll', '1') : req;
+      };
+
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+      await models.Session.updateOne({ tokenHash }, { $set: { lastActiveAt: thirtyMinutesAgo } });
+      assert.equal((await poll(true)).status, 200);
+      assert.equal((await models.Session.findOne({ tokenHash }).lean()).lastActiveAt.getTime(), thirtyMinutesAgo.getTime());
+
+      assert.equal((await poll(false)).status, 200);
+      assert.ok((await models.Session.findOne({ tokenHash }).lean()).lastActiveAt.getTime() > thirtyMinutesAgo.getTime());
+
+      await models.Session.updateOne({ tokenHash }, { $set: { lastActiveAt: new Date(Date.now() - 2 * 60 * 60 * 1000) } });
+      assert.equal((await poll(true)).status, 401);
+    });
+  });
+
+  describe('payment holds and reminder maintenance', () => {
+    test('an expired unpaid hold is released by the scheduled cycle without anyone touching the slot', async () => {
+      const { runReminderCycle } = await import('../jobs/reminderJob.js');
+      const date = uniqueDate();
+      const booked = await book({ appointmentDate: date, timeSlot: '05:30 PM', email: 'hold@example.com' });
+      const id = booked.body.data.appointmentId;
+      await models.Appointment.updateOne({ _id: id }, { $set: { holdExpiresAt: new Date(Date.now() - 60 * 1000) } });
+      assert.equal((await dbDoc(id)).status, 'PENDING_PAYMENT');
+
+      await runReminderCycle();
+
+      const doc = await dbDoc(id);
+      assert.equal(doc.status, 'CANCELLED');
+      assert.equal(doc.cancelReason, 'Payment hold expired');
+      assert.equal(doc.slotKey, undefined);
+      assert.equal((await book({ appointmentDate: date, timeSlot: '05:30 PM' })).status, 201);
+    });
+
+    test('payment cannot be confirmed for a hold that was released and the error is a clean 409', async () => {
+      const booked = await book();
+      const id = booked.body.data.appointmentId;
+      await models.Appointment.updateOne({ _id: id }, { $set: { holdExpiresAt: new Date(Date.now() - 1000) } });
+      const { runReminderCycle } = await import('../jobs/reminderJob.js');
+      await runReminderCycle();
+      const res = await pay(id);
+      assert.equal(res.status, 409);
+      assert.equal((await dbDoc(id)).paymentStatus, 'PENDING');
+    });
+  });
+
+  describe('staging safeguard and stale-step recovery', () => {
+    const retry = (id, role = 'CLINICIAN') =>
+      agent.post(`/api/dashboard/appointments/${id}/retry`).set(auth(role)).send({});
+    const ORIGINAL_ALLOW = process.env.OUTBOUND_ALLOWED_RECIPIENTS;
+
+    test('with an allow-list, patient messages to other recipients are skipped and internal notices still go out', async () => {
+      process.env.OUTBOUND_ALLOWED_RECIPIENTS = 'tester@example.com,9811111199';
+      try {
+        fake.reset();
+        const blocked = await book({ email: 'real.patient@example.com', phoneNumber: '9822222233', whatsappOptIn: true });
+        const paid = await pay(blocked.body.data.appointmentId);
+        assert.equal(paid.status, 200);
+        assert.equal(paid.body.data.status, 'CONFIRMED');
+        assert.equal(paid.body.data.notifications.patientEmail, 'SKIPPED');
+        assert.equal(paid.body.data.notifications.patientWhatsapp, 'SKIPPED');
+        assert.equal(paid.body.data.notifications.clinicEmail, 'SENT');
+        assert.equal(paid.body.data.notifications.clinicWhatsapp, 'SENT');
+        assert.equal(emailsTo('real.patient@example.com').length, 0);
+        assert.equal(fake.state.whatsapp.filter((m) => m.to === '919822222233').length, 0);
+
+        const allowed = await book({ email: 'tester@example.com', phoneNumber: '9811111199', whatsappOptIn: true });
+        const paidAllowed = await pay(allowed.body.data.appointmentId);
+        assert.equal(paidAllowed.body.data.notifications.patientEmail, 'SENT');
+        assert.equal(paidAllowed.body.data.notifications.patientWhatsapp, 'SENT');
+        assert.equal(emailsTo('tester@example.com').length, 1);
+      } finally {
+        if (ORIGINAL_ALLOW === undefined) delete process.env.OUTBOUND_ALLOWED_RECIPIENTS;
+        else process.env.OUTBOUND_ALLOWED_RECIPIENTS = ORIGINAL_ALLOW;
+      }
+    });
+
+    test('a step left in SENDING by a crash becomes a visible, retryable failure; a fresh one is left alone', async () => {
+      const { runReminderCycle } = await import('../jobs/reminderJob.js');
+      const crashed = (await book({ email: 'crash@example.com', whatsappOptIn: false })).body.data.appointmentId;
+      const inFlight = (await book({ email: 'inflight@example.com', whatsappOptIn: false })).body.data.appointmentId;
+      await pay(crashed);
+      await pay(inFlight);
+
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+      await models.Appointment.collection.updateOne(
+        { _id: new mongoose.Types.ObjectId(crashed) },
+        { $set: { patientEmailStatus: 'SENDING', reminderEmailStatus: 'SENDING', updatedAt: tenMinutesAgo } }
+      );
+      await models.Appointment.collection.updateOne(
+        { _id: new mongoose.Types.ObjectId(inFlight) },
+        { $set: { patientEmailStatus: 'SENDING', updatedAt: new Date() } }
+      );
+
+      await runReminderCycle();
+
+      const stuck = await dbDoc(crashed);
+      assert.equal(stuck.patientEmailStatus, 'FAILED');
+      assert.equal(stuck.reminderEmailStatus, 'FAILED');
+      assert.equal((await dbDoc(inFlight)).patientEmailStatus, 'SENDING');
+
+      const listed = await agent.get('/api/dashboard/appointments?status=CONFIRMED&limit=50').set(auth('CLINICIAN'));
+      assert.equal(listed.body.data.find((item) => item.id === crashed).notifications.patientEmail, 'FAILED');
+
+      const before = emailsTo('crash@example.com').length;
+      const retried = await retry(crashed);
+      assert.equal(retried.status, 200);
+      assert.equal(retried.body.data.notifications.patientEmail, 'SENT');
+      assert.equal(retried.body.data.notifications.reminderEmail, 'SENT');
+      assert.equal(emailsTo('crash@example.com').length, before + 2);
     });
   });
 

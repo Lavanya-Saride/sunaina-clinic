@@ -16,6 +16,8 @@ import {
   retryAutomation,
 } from '../services/dashboardService';
 import { EMPTY_FILTERS, STATUS_TABS, getErrorMessage } from '../utils/dashboard';
+import { createPoller } from '../utils/polling';
+import { DASHBOARD_REFRESH_DEFAULT_MS, DASHBOARD_REFRESH_MIN_MS, readIntervalMs } from '../utils/pollConfig';
 import logo from '../assets/images/logo.png';
 import title from '../assets/images/title.png';
 
@@ -78,21 +80,32 @@ export default function Dashboard() {
   useEffect(() => {
     if (status !== 'authenticated') return undefined;
 
-    const controller = new AbortController();
     const { params } = JSON.parse(queryKey);
+    const intervalMs = readIntervalMs(import.meta.env.VITE_DASHBOARD_REFRESH_INTERVAL_MS, {
+      fallback: DASHBOARD_REFRESH_DEFAULT_MS,
+      min: DASHBOARD_REFRESH_MIN_MS,
+    });
+    let initial = true;
 
-    fetchAppointments(params, controller.signal)
-      .then((data) => {
+    const poller = createPoller({
+      task: async (signal) => {
+        const data = await fetchAppointments(params, signal, { background: !initial });
+        initial = false;
         setResult({ key: queryKey, items: data.data, counts: data.counts, pagination: data.pagination });
         setLoadError('');
-      })
-      .catch((error) => {
-        if (controller.signal.aborted) return;
-        setLoadError(getErrorMessage(error, 'Unable to load appointments.'));
-        setResult((current) => ({ ...current, key: queryKey }));
-      });
+      },
+      intervalMs,
+      onError: (error, { failures }) => {
+        if (initial || failures >= 2) {
+          setLoadError(getErrorMessage(error, 'Unable to load appointments.'));
+        }
+        setResult((current) => (current.key === queryKey ? current : { ...current, key: queryKey }));
+      },
+    });
 
-    return () => controller.abort();
+    poller.start();
+
+    return () => poller.stop();
   }, [status, queryKey]);
 
   const reload = useCallback(() => setReloadKey((current) => current + 1), []);

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getGooglePlaceDetails } from '../services/googlePlacesService.js';
+import { logEvent } from '../utils/logger.js';
 
 const router = Router();
 
@@ -45,7 +46,12 @@ router.get('/reviews', async (req, res, next) => {
       },
     });
   } catch (error) {
-    next(error);
+    logEvent('error', 'places.request_failed', { status: error.status, message: error.message });
+
+    return res.status(502).json({
+      success: false,
+      message: 'Unable to load Google reviews.',
+    });
   }
 });
 

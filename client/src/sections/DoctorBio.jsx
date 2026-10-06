@@ -10,7 +10,7 @@ export default function DoctorBio() {
       <div className="mx-auto w-full max-w-6xl px-4 xs:px-5 sm:px-7 lg:px-10">
         <div className="mx-auto grid w-full max-w-5xl items-center gap-7 lg:grid-cols-[.72fr_1.28fr] lg:gap-12">
           <div className="group mx-auto w-full max-w-sm overflow-hidden rounded-3xl shadow-card aspect-[4/5] sm:aspect-[5/4] lg:aspect-[4/5] lg:max-w-none transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.01] hover:shadow-2xl">
-            <img src={doctorPhoto} alt={`${CLINIC.doctor} at ${CLINIC.name}`} className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]" />
+            <img src={doctorPhoto} alt={`${CLINIC.doctor} at ${CLINIC.name}`} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]" />
           </div>
 
           <div className="min-w-0 text-center lg:text-left">

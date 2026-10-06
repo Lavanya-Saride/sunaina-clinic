@@ -62,6 +62,7 @@ export async function createAppointmentRecord({
   source,
   whatsappOptIn,
   optInSource,
+  recordedBy,
   withHold,
 }) {
   await releaseExpiredHolds({ appointmentDate, timeSlot });
@@ -79,6 +80,7 @@ export async function createAppointmentRecord({
     source,
     whatsappOptIn,
     optInSource,
+    recordedBy,
   });
 
   try {

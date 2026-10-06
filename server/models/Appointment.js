@@ -258,6 +258,7 @@ appointmentSchema.pre('validate', function deriveFields() {
 
 appointmentSchema.index({ slotKey: 1 }, { unique: true, sparse: true, name: 'unique_active_slot' });
 appointmentSchema.index({ status: 1, startsAt: 1 });
+appointmentSchema.index({ appointmentDate: 1, status: 1 });
 appointmentSchema.index({ createdAt: -1 });
 
 export default mongoose.model('Appointment', appointmentSchema);

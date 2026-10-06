@@ -9,6 +9,8 @@ export function installFakeExternalApis() {
     failCalendar: false,
     failGmail: false,
     failWhatsApp: false,
+    timeoutGmail: false,
+    beforeCalendarCreate: null,
   };
 
   function json(status, body) {
@@ -38,7 +40,7 @@ export function installFakeExternalApis() {
     };
   }
 
-  globalThis.fetch = async (input, init = {}) => {
+  async function guardedFetch(input, init = {}) {
     const url = String(input);
     const method = (init.method || 'GET').toUpperCase();
 
@@ -58,6 +60,11 @@ export function installFakeExternalApis() {
 
       if (method === 'POST') {
         const body = JSON.parse(init.body);
+        if (state.beforeCalendarCreate) {
+          const hook = state.beforeCalendarCreate;
+          state.beforeCalendarCreate = null;
+          await hook(body);
+        }
         if (state.events.has(body.id)) {
           return json(409, { error: { message: 'The requested identifier already exists.' } });
         }
@@ -83,6 +90,9 @@ export function installFakeExternalApis() {
     }
 
     if (url.startsWith('https://gmail.googleapis.com/')) {
+      if (state.timeoutGmail) {
+        throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+      }
       if (state.failGmail) {
         return json(500, { error: { message: 'Gmail unavailable' } });
       }
@@ -104,7 +114,9 @@ export function installFakeExternalApis() {
     }
 
     return realFetch(input, init);
-  };
+  }
+
+  globalThis.fetch = guardedFetch;
 
   return {
     state,
@@ -116,6 +128,8 @@ export function installFakeExternalApis() {
       state.failCalendar = false;
       state.failGmail = false;
       state.failWhatsApp = false;
+      state.timeoutGmail = false;
+      state.beforeCalendarCreate = null;
     },
     restore() {
       globalThis.fetch = realFetch;

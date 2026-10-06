@@ -1,8 +1,23 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import Patient from '../models/Patient.js';
+import { logEvent } from '../utils/logger.js';
 import { normalizePhone } from '../utils/phone.js';
 
-const OPT_OUT_KEYWORDS = ['STOP', 'STOP ALL', 'UNSUBSCRIBE'];
+const OPT_OUT_KEYWORDS = ['STOP', 'STOP ALL', 'STOPALL', 'UNSUBSCRIBE'];
+
+export function isOptOutText(value) {
+  const normalized = String(value || '')
+    .toUpperCase()
+    .replace(/[^A-Z ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return OPT_OUT_KEYWORDS.includes(normalized);
+}
+
+function messageTime(message) {
+  const seconds = Number(message?.timestamp);
+  return Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1000) : new Date();
+}
 
 function safeEqual(a, b) {
   const left = Buffer.from(String(a));
@@ -48,13 +63,22 @@ export async function receiveWebhook(req, res, next) {
 
       for (const change of entry?.changes || []) {
         for (const message of change?.value?.messages || []) {
-          const text = String(message?.text?.body || '').trim().toUpperCase();
+          if (message?.type === 'text' && isOptOutText(message?.text?.body) && message.from) {
+            const sentAt = messageTime(message);
 
-          if (message?.type === 'text' && OPT_OUT_KEYWORDS.includes(text) && message.from) {
             await Patient.updateOne(
-              { whatsappNumber: normalizePhone(message.from) },
-              { $set: { whatsappOptIn: false, whatsappOptOutAt: new Date() } }
+              {
+                whatsappNumber: normalizePhone(message.from),
+                $or: [{ whatsappOptInAt: null }, { whatsappOptInAt: { $lte: new Date(sentAt.getTime() + 1000) } }],
+              },
+              { $set: { whatsappOptIn: false, whatsappOptOutAt: sentAt } }
             );
+          }
+        }
+
+        for (const status of change?.value?.statuses || []) {
+          if (status?.status === 'failed') {
+            logEvent('warn', 'whatsapp.delivery_failed', { code: Number(status?.errors?.[0]?.code) || 0 });
           }
         }
       }

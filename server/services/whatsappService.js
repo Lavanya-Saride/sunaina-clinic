@@ -1,6 +1,8 @@
-import { CLINIC_MAPS_URL, getSlotEndLabel } from '../config/appointmentConfig.js';
+import { CLINIC_MAPS_URL, getSlotRangeLabel } from '../config/appointmentConfig.js';
 import { formatDisplayDate } from '../utils/appointmentTime.js';
 import { normalizePhone } from '../utils/phone.js';
+import { providerFetch } from '../utils/providerFetch.js';
+import { assertRecipientAllowed } from '../utils/recipientPolicy.js';
 
 const TEMPLATE_DEFAULTS = {
   confirmation: ['WHATSAPP_TEMPLATE_CONFIRMATION', 'appointment_confirmation'],
@@ -16,7 +18,7 @@ export function isWhatsAppConfigured() {
 }
 
 function getWhatsAppConfig() {
-  const apiVersion = process.env.WHATSAPP_API_VERSION?.trim() || 'v20.0';
+  const apiVersion = process.env.WHATSAPP_API_VERSION?.trim() || 'v25.0';
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN?.trim();
   const clinicNumber = process.env.WHATSAPP_CLINIC_NUMBER?.trim();
@@ -42,15 +44,19 @@ function cleanParameter(value) {
   return text || '-';
 }
 
-async function sendTemplateMessage(to, templateKey, parameters) {
+async function sendTemplateMessage(to, templateKey, parameters, { internal = false } = {}) {
   const { apiVersion, phoneNumberId, accessToken, language } = getWhatsAppConfig();
   const recipient = normalizePhone(to);
+
+  if (!internal) {
+    assertRecipientAllowed(recipient);
+  }
 
   if (!recipient) {
     throw new Error('WhatsApp recipient number is missing.');
   }
 
-  const response = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+  const response = await providerFetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -99,7 +105,7 @@ function getAppointmentParameters(appointment) {
   return [
     appointment.fullName,
     formatDisplayDate(appointment.appointmentDate),
-    `${appointment.timeSlot} - ${getSlotEndLabel(appointment.timeSlot)}`,
+    getSlotRangeLabel(appointment.timeSlot),
     getConsultationLabel(appointment),
     getLinkText(appointment),
   ];
@@ -121,11 +127,16 @@ export async function sendClinicAlertWhatsApp(appointment) {
   const { clinicNumber } = getWhatsAppConfig();
   if (!clinicNumber) return null;
 
-  return sendTemplateMessage(clinicNumber, 'clinicAlert', [
-    appointment.fullName,
-    formatDisplayDate(appointment.appointmentDate),
-    `${appointment.timeSlot} - ${getSlotEndLabel(appointment.timeSlot)}`,
-    getConsultationLabel(appointment),
-    appointment.appointmentNumber,
-  ]);
+  return sendTemplateMessage(
+    clinicNumber,
+    'clinicAlert',
+    [
+      appointment.fullName,
+      formatDisplayDate(appointment.appointmentDate),
+      getSlotRangeLabel(appointment.timeSlot),
+      getConsultationLabel(appointment),
+      appointment.appointmentNumber,
+    ],
+    { internal: true }
+  );
 }

@@ -5,6 +5,7 @@ export const CLINIC_CONSULTATION_FEE = Number(process.env.CLINIC_CONSULTATION_FE
 export const VIRTUAL_CONSULTATION_FEE = Number(process.env.VIRTUAL_CONSULTATION_FEE) || APPOINTMENT_FEE;
 export const APPOINTMENT_DURATION_MINUTES = 30;
 export const PAYMENT_HOLD_HOURS = Number(process.env.PAYMENT_HOLD_HOURS) || 24;
+export const CLINIC_TIME_ZONE_LABEL = 'IST';
 export const CONSULTATION_TYPES = ['offline', 'virtual'];
 export const PAYMENT_METHODS = ['UPI', 'CASH', 'BANK_TRANSFER', 'OTHER'];
 export const CLINIC_MAPS_URL =
@@ -23,4 +24,8 @@ export function getSlotEndLabel(timeSlot) {
   const displayHour = endHour % 12 === 0 ? 12 : endHour % 12;
 
   return `${String(displayHour).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')} ${endPeriod}`;
+}
+
+export function getSlotRangeLabel(timeSlot) {
+  return `${timeSlot} - ${getSlotEndLabel(timeSlot)} ${CLINIC_TIME_ZONE_LABEL}`;
 }

@@ -75,8 +75,12 @@ export async function fetchCurrentUser() {
   return response.data.data;
 }
 
-export async function fetchAppointments(params, signal) {
-  const response = await api.get('/dashboard/appointments', { params, signal });
+export async function fetchAppointments(params, signal, { background = false } = {}) {
+  const response = await api.get('/dashboard/appointments', {
+    params,
+    signal,
+    headers: background ? { 'X-Background-Poll': '1' } : undefined,
+  });
   return response.data;
 }
 

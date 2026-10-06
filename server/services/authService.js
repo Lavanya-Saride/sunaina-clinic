@@ -61,15 +61,21 @@ export async function login(email, password) {
   const valid = await verifyPassword(password, user.passwordHash);
 
   if (!valid) {
-    const attempts = (user.failedLoginAttempts || 0) + 1;
-    const update = { failedLoginAttempts: attempts };
+    await User.updateOne({ _id: user._id }, { $inc: { failedLoginAttempts: 1 } });
+    const counted = await User.findById(user._id).select('failedLoginAttempts').lean();
 
-    if (attempts >= MAX_FAILED_ATTEMPTS) {
-      update.lockUntil = new Date(now.getTime() + LOCK_MINUTES * 60 * 1000);
-      update.failedLoginAttempts = 0;
+    if ((counted?.failedLoginAttempts || 0) >= MAX_FAILED_ATTEMPTS) {
+      await User.updateOne(
+        { _id: user._id, failedLoginAttempts: { $gte: MAX_FAILED_ATTEMPTS } },
+        {
+          $set: {
+            lockUntil: new Date(now.getTime() + LOCK_MINUTES * 60 * 1000),
+            failedLoginAttempts: 0,
+          },
+        }
+      );
     }
 
-    await User.updateOne({ _id: user._id }, { $set: update });
     throw new AuthError('Invalid email or password.');
   }
 
@@ -93,7 +99,7 @@ export async function login(email, password) {
   return { token, expiresAt, user: toPublicUser(user) };
 }
 
-export async function verifySession(token) {
+export async function verifySession(token, { touch = true } = {}) {
   if (!token || typeof token !== 'string' || token.length > 200) {
     return null;
   }
@@ -119,7 +125,7 @@ export async function verifySession(token) {
     return null;
   }
 
-  if (now.getTime() - session.lastActiveAt.getTime() > TOUCH_INTERVAL_MS) {
+  if (touch && now.getTime() - session.lastActiveAt.getTime() > TOUCH_INTERVAL_MS) {
     await Session.updateOne({ _id: session._id }, { $set: { lastActiveAt: now } });
   }
 

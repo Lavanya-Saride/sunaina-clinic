@@ -1,7 +1,9 @@
 import { randomBytes } from 'node:crypto';
-import { CLINIC_MAPS_URL, getSlotEndLabel } from '../config/appointmentConfig.js';
+import { CLINIC_MAPS_URL, CLINIC_TIME_ZONE_LABEL, getSlotRangeLabel } from '../config/appointmentConfig.js';
 import { getGoogleAccessToken } from './googleAuth.js';
 import { formatDisplayDate } from '../utils/appointmentTime.js';
+import { providerFetch } from '../utils/providerFetch.js';
+import { assertRecipientAllowed } from '../utils/recipientPolicy.js';
 
 const GMAIL_SEND_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
 const CLINIC_NAME = 'Sunaina Clinic';
@@ -82,10 +84,14 @@ export function buildMimeMessage({ from, to, subject, text, html }) {
 }
 
 export async function sendMail({ from, to, subject, text, html }) {
+  if (!String(to).toLowerCase().endsWith(`@${getCompanyDomain()}`)) {
+    assertRecipientAllowed(to);
+  }
+
   const accessToken = await getGoogleAccessToken();
   const raw = Buffer.from(buildMimeMessage({ from, to, subject, text, html }), 'utf8').toString('base64url');
 
-  const response = await fetch(GMAIL_SEND_URL, {
+  const response = await providerFetch(GMAIL_SEND_URL, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -116,7 +122,7 @@ function getDetails(appointment) {
     isVirtual,
     type: isVirtual ? 'Virtual Consultation' : 'Clinic Consultation',
     date: formatDisplayDate(appointment.appointmentDate),
-    timeRange: `${appointment.timeSlot} - ${getSlotEndLabel(appointment.timeSlot)}`,
+    timeRange: getSlotRangeLabel(appointment.timeSlot),
     amount: appointment.paymentAmount ?? appointment.fee,
   };
 }
@@ -132,6 +138,10 @@ function buildLocationLine(appointment, isVirtual) {
     text: `Get Directions: ${CLINIC_MAPS_URL}`,
     html: `<p><strong>Directions:</strong> <a href="${escapeHtml(CLINIC_MAPS_URL)}">Get Directions to Sunaina Clinic</a></p>`,
   };
+}
+
+function subjectWhen(appointment) {
+  return `${formatDisplayDate(appointment.appointmentDate)}, ${appointment.timeSlot} ${CLINIC_TIME_ZONE_LABEL}`;
 }
 
 function buildPatientMessage(appointment, { heading, intro, showPayment }) {
@@ -180,7 +190,7 @@ export async function sendAppointmentConfirmationToPatient(appointment) {
   return sendMail({
     from: getMailbox('appointments'),
     to: appointment.email,
-    subject: `Appointment Confirmed - ${appointment.appointmentDate} ${appointment.timeSlot}`,
+    subject: `Appointment Confirmed - ${subjectWhen(appointment)}`,
     ...content,
   });
 }
@@ -197,7 +207,7 @@ export async function sendAppointmentReminderToPatient(appointment) {
   return sendMail({
     from: getMailbox('appointments'),
     to: appointment.email,
-    subject: `Appointment Reminder - ${appointment.appointmentDate} ${appointment.timeSlot}`,
+    subject: `Appointment Reminder - ${subjectWhen(appointment)}`,
     ...content,
   });
 }

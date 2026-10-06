@@ -38,6 +38,10 @@ const patientSchema = new mongoose.Schema(
       type: String,
       enum: OPT_IN_SOURCES,
     },
+    whatsappOptInRecordedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
     whatsappOptOutAt: {
       type: Date,
       default: null,

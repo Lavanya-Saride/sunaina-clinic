@@ -3,9 +3,12 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import mongoose from 'mongoose';
+import { pathToFileURL } from 'node:url';
 import connectDB from './config/db.js';
 import { runMigrations } from './config/migrations.js';
-import { startReminderJob } from './jobs/reminderJob.js';
+import { validateEnv } from './config/validateEnv.js';
+import { startReminderJob, stopReminderJob } from './jobs/reminderJob.js';
 
 import feedbackRoutes from './routes/feedbackRoutes.js';
 import healthRoutes from './routes/healthRoutes.js';
@@ -22,7 +25,11 @@ import {
   errorHandler,
 } from './middleware/errorHandler.js';
 
+import { BACKGROUND_POLL_HEADER } from './middleware/auth.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
+import { logEvent } from './utils/logger.js';
+
+const SHUTDOWN_GRACE_MS = 25000;
 
 const PORT = Number(process.env.PORT) || 5000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -98,6 +105,7 @@ app.use(
       'Content-Type',
       'Accept',
       'Authorization',
+      BACKGROUND_POLL_HEADER,
     ],
 
     optionsSuccessStatus: 204,
@@ -140,41 +148,98 @@ app.use(notFound);
 
 app.use(errorHandler);
 
-async function start() {
+export function isMainModule(moduleUrl, entryPath) {
+  return Boolean(entryPath) && moduleUrl === pathToFileURL(entryPath).href;
+}
+
+export function installShutdown(server, reminderTimers) {
+  let closing = false;
+
+  const shutdown = async (signal) => {
+    if (closing) return;
+    closing = true;
+
+    logEvent('info', 'server.shutdown_started', { signal });
+
+    const force = setTimeout(() => {
+      logEvent('error', 'server.shutdown_forced');
+      process.exit(1);
+    }, SHUTDOWN_GRACE_MS);
+    force.unref();
+
+    try {
+      await new Promise((resolve) => {
+        server.close(resolve);
+        server.closeIdleConnections?.();
+      });
+      await stopReminderJob(reminderTimers);
+      await mongoose.disconnect();
+      logEvent('info', 'server.shutdown_complete');
+      process.exit(0);
+    } catch (error) {
+      logEvent('error', 'server.shutdown_failed', { name: error.name, message: error.message });
+      process.exit(1);
+    }
+  };
+
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
+}
+
+export async function start() {
+  const { errors, warnings } = validateEnv();
+
+  for (const warning of warnings) {
+    logEvent('warn', 'config.warning', { message: warning });
+  }
+
+  if (errors.length > 0) {
+    for (const error of errors) {
+      logEvent('error', 'config.invalid', { message: error });
+    }
+    process.exit(1);
+  }
+
+  process.on('unhandledRejection', (reason) => {
+    logEvent('error', 'process.unhandled_rejection', { name: reason?.name, message: reason?.message });
+    process.exit(1);
+  });
+
+  process.on('uncaughtException', (error) => {
+    logEvent('error', 'process.uncaught_exception', { name: error?.name, message: error?.message });
+    process.exit(1);
+  });
+
   try {
     await connectDB();
 
-    try {
-      const result = await runMigrations();
-      if (result.migrated > 0) {
-        console.log(`Data migration completed for ${result.migrated} appointment(s).`);
-      }
-    } catch (migrationError) {
-      console.error('Data migration failed:', migrationError.message);
+    const result = await runMigrations();
+
+    if (result.migrated > 0) {
+      logEvent('info', 'migration.completed', {
+        migrated: result.migrated,
+        patientLinkFailures: result.patientLinkFailures,
+      });
     }
-
-    startReminderJob();
-
-    app.listen(PORT, () => {
-      console.log(
-        `Sunaina Clinic API running on port ${PORT} [${NODE_ENV}]`
-      );
-
-      console.log(
-        `Allowed CORS origins: ${allowedOrigins.join(', ')}`
-      );
-    });
   } catch (error) {
-    console.error(
-      'Failed to start server:',
-      error.message
-    );
-
+    logEvent('error', 'startup.failed', { name: error.name, message: error.message });
     process.exit(1);
   }
+
+  const reminderTimers = startReminderJob();
+
+  const server = app.listen(PORT, () => {
+    logEvent('info', 'server.listening', {
+      port: PORT,
+      environment: NODE_ENV,
+      allowedOrigins: allowedOrigins.join(', '),
+    });
+  });
+
+  installShutdown(server, reminderTimers);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url, process.argv[1])) {
   start();
 }
 

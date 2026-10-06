@@ -9,10 +9,8 @@ import {
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { SITE_CONTENT, TIME_SLOTS } from '../utils/constants';
-import {
-  createAppointment,
-  getBookedSlots,
-} from '../services/appointmentService';
+import useBookedSlots from '../hooks/useBookedSlots';
+import { createAppointment } from '../services/appointmentService';
 
 const CONSULTATION_TYPES = ['offline', 'virtual'];
 
@@ -345,14 +343,6 @@ export default function AppointmentForm() {
       )
     );
 
-  const [bookedSlots, setBookedSlots] =
-    useState([]);
-
-  const [
-    isLoadingSlots,
-    setIsLoadingSlots,
-  ] = useState(false);
-
   const [
     isSubmitting,
     setIsSubmitting,
@@ -391,6 +381,65 @@ export default function AppointmentForm() {
 
   const appointment =
     SITE_CONTENT?.appointment || {};
+
+  const timeSlotRef = useRef('');
+  const isSubmittingRef = useRef(false);
+
+  useEffect(() => {
+    timeSlotRef.current = formData.timeSlot;
+    isSubmittingRef.current = isSubmitting;
+  });
+
+  const {
+    slots: bookedSlots,
+    status: slotsStatus,
+    markBooked,
+  } = useBookedSlots(
+    formData.appointmentDate,
+    {
+      enabled:
+        Boolean(
+          formData.appointmentDate
+        ) &&
+        !isSundayDate(
+          formData.appointmentDate
+        ),
+      validSlots: TIME_SLOTS,
+      onLoaded: (slots) => {
+        if (
+          timeSlotRef.current &&
+          slots.includes(
+            timeSlotRef.current
+          ) &&
+          !isSubmittingRef.current
+        ) {
+          setFormData((current) => ({
+            ...current,
+            timeSlot: '',
+          }));
+
+          setIsSuccess(false);
+          setMessage(
+            appointment.conflict ||
+              'This slot is no longer available. Please select another slot.'
+          );
+        }
+      },
+    }
+  );
+
+  const isLoadingSlots =
+    slotsStatus === 'loading';
+
+  const slotsUnavailable =
+    slotsStatus === 'error';
+
+  const displayedMessage =
+    message ||
+    (slotsUnavailable
+      ? appointment.genericError ||
+        'Something went wrong. Please try again.'
+      : '');
 
   const todayString = getToday();
 
@@ -441,63 +490,6 @@ export default function AppointmentForm() {
       ),
     [calendarMonth]
   );
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadBookedSlots() {
-      if (
-        !formData.appointmentDate ||
-        isSundayDate(
-          formData.appointmentDate
-        )
-      ) {
-        setBookedSlots([]);
-        setIsLoadingSlots(false);
-        return;
-      }
-
-      setIsLoadingSlots(true);
-      setBookedSlots([]);
-
-      try {
-        const slots =
-          await getBookedSlots(
-            formData.appointmentDate
-          );
-
-        if (!isMounted) {
-          return;
-        }
-
-        setBookedSlots(
-          Array.isArray(slots)
-            ? slots.filter((slot) =>
-                TIME_SLOTS.includes(
-                  slot
-                )
-              )
-            : []
-        );
-      } catch {
-        if (isMounted) {
-          setBookedSlots([]);
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingSlots(false);
-        }
-      }
-    }
-
-    loadBookedSlots();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [
-    formData.appointmentDate,
-  ]);
 
   useEffect(() => {
     const handleOutsideClick = (
@@ -565,7 +557,6 @@ export default function AppointmentForm() {
       timeSlot: '',
     }));
 
-    setBookedSlots([]);
     setMessage('');
     setIsSuccess(false);
     setConfirmation(null);
@@ -791,15 +782,8 @@ export default function AppointmentForm() {
 
       setConfirmation(booking);
 
-      setBookedSlots((current) =>
-        current.includes(
-          booking.timeSlot
-        )
-          ? current
-          : [
-              ...current,
-              booking.timeSlot,
-            ]
+      markBooked(
+        booking.timeSlot
       );
 
       setFormData(
@@ -814,16 +798,8 @@ export default function AppointmentForm() {
         error?.response?.status ===
         409
       ) {
-        setBookedSlots(
-          (current) =>
-            current.includes(
-              formData.timeSlot
-            )
-              ? current
-              : [
-                  ...current,
-                  formData.timeSlot,
-                ]
+        markBooked(
+          formData.timeSlot
         );
 
         setFormData((current) => ({
@@ -1096,6 +1072,7 @@ export default function AppointmentForm() {
                   disabled={
                     !formData.appointmentDate ||
                     isLoadingSlots ||
+                    slotsUnavailable ||
                     isSundayDate(
                       formData.appointmentDate
                     )
@@ -1262,7 +1239,7 @@ export default function AppointmentForm() {
             </span>
           </label>
 
-          {message && (
+          {displayedMessage && (
             <div
               role="alert"
               className={`rounded-xl border px-4 py-3 text-[clamp(0.7rem,1.7vw,0.875rem)] leading-relaxed ${
@@ -1271,7 +1248,7 @@ export default function AppointmentForm() {
                   : 'border-red-200 bg-red-50 text-red-600'
               }`}
             >
-              {message}
+              {displayedMessage}
             </div>
           )}
 
@@ -1317,7 +1294,8 @@ export default function AppointmentForm() {
             type="submit"
             disabled={
               isSubmitting ||
-              isLoadingSlots
+              isLoadingSlots ||
+              slotsUnavailable
             }
             className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-maroon px-6 text-[clamp(0.72rem,1.7vw,0.875rem)] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-maroon-dark disabled:cursor-not-allowed disabled:opacity-60 sm:px-8"
           >

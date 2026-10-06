@@ -2,7 +2,7 @@ import Patient from '../models/Patient.js';
 import { sanitizePlainText } from '../utils/sanitize.js';
 import { normalizePhone } from '../utils/phone.js';
 
-export async function upsertPatient({ name, phone, email, source, whatsappOptIn, optInSource }) {
+export async function upsertPatient({ name, phone, email, source, whatsappOptIn, optInSource, recordedBy }) {
   const whatsappNumber = normalizePhone(phone);
   const cleanName = sanitizePlainText(name);
   const cleanEmail = sanitizePlainText(email || '').toLowerCase();
@@ -20,6 +20,7 @@ export async function upsertPatient({ name, phone, email, source, whatsappOptIn,
         whatsappOptIn: Boolean(whatsappOptIn),
         whatsappOptInAt: whatsappOptIn ? now : null,
         whatsappOptInSource: whatsappOptIn ? optInSource : undefined,
+        whatsappOptInRecordedBy: whatsappOptIn && optInSource === 'DASHBOARD' ? recordedBy : undefined,
       });
       return patient;
     } catch (error) {
@@ -37,10 +38,14 @@ export async function upsertPatient({ name, phone, email, source, whatsappOptIn,
     changed = true;
   }
 
-  if (whatsappOptIn && (!patient.whatsappOptIn || patient.whatsappOptOutAt)) {
+  const optedOut = Boolean(patient.whatsappOptOutAt);
+  const mayOptIn = !optedOut || optInSource !== 'DASHBOARD';
+
+  if (whatsappOptIn && mayOptIn && (!patient.whatsappOptIn || optedOut)) {
     patient.whatsappOptIn = true;
     patient.whatsappOptInAt = now;
     patient.whatsappOptInSource = optInSource;
+    patient.whatsappOptInRecordedBy = optInSource === 'DASHBOARD' ? recordedBy : undefined;
     patient.whatsappOptOutAt = null;
     changed = true;
   }

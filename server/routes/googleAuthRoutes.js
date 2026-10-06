@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import { GOOGLE_SCOPES } from '../services/googleAuth.js';
+import { providerFetch } from '../utils/providerFetch.js';
 
 const router = Router();
 
@@ -28,7 +29,7 @@ function getOAuthConfig() {
 }
 
 function requireSetupEnabled(req, res, next) {
-  if (process.env.GOOGLE_OAUTH_SETUP_ENABLED !== 'true') {
+  if (process.env.NODE_ENV === 'production' || process.env.GOOGLE_OAUTH_SETUP_ENABLED !== 'true') {
     return res.status(404).json({ success: false, message: 'Route not found.' });
   }
 
@@ -93,7 +94,7 @@ router.get('/callback', async (req, res, next) => {
 
     const { clientId, clientSecret, redirectUri } = getOAuthConfig();
 
-    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    const tokenResponse = await providerFetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({

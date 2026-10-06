@@ -5,11 +5,12 @@ import {
   handleValidationErrors,
   rejectUnknownFields,
 } from '../middleware/feedbackValidator.js';
-import { submitFeedbackLimiter } from '../middleware/rateLimiter.js';
+import { noCache } from '../middleware/cacheControl.js';
+import { publicReadLimiter, submitFeedbackLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
 
-router.get('/', getFeedback);
+router.get('/', publicReadLimiter, noCache, getFeedback);
 
 router.post(
   '/',

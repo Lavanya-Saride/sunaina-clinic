@@ -7,7 +7,7 @@ import {
   STATUS_TONES,
   formatDate,
   formatDateTime,
-  hasFailedAutomation,
+  canRetryAutomation,
   isAwaitingAttendance,
 } from '../../utils/dashboard';
 
@@ -40,7 +40,7 @@ export default function AppointmentCard({ appointment, can, busy, onConfirmPayme
   const [pendingAction, setPendingAction] = useState(null);
   const paymentMethod = PAYMENT_METHOD_OPTIONS.find((option) => option.value === appointment.paymentMethod)?.label || appointment.paymentMethod;
   const awaiting = isAwaitingAttendance(appointment);
-  const failed = hasFailedAutomation(appointment);
+  const failed = canRetryAutomation(appointment);
   const phoneHref = `tel:${appointment.phoneNumber.replace(/[^\d+]/g, '')}`;
 
   const runPending = async () => {
@@ -162,7 +162,7 @@ export default function AppointmentCard({ appointment, can, busy, onConfirmPayme
         </p>
       )}
 
-      {failed && can('automation:retry') && ['CONFIRMED', 'COMPLETED'].includes(appointment.status) && (
+      {failed && can('automation:retry') && (
         <div className="space-y-3 rounded-xl border border-red-200 bg-red-50 p-3">
           <p className="text-[0.75rem] leading-relaxed text-red-600">Some calendar or message steps did not complete. The appointment itself is not affected.</p>
           <button type="button" onClick={() => onRetry(appointment)} disabled={busy} className={outlineButton}>
