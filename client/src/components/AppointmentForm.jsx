@@ -1232,7 +1232,7 @@ export default function AppointmentForm() {
                   <>
                     <p>
                       Your appointment request has been received. Our clinician will
-                      contact you soon to confirm the payment.
+                      contact you soon to take the payment.
                     </p>
                     <p className="mt-2">
                       <strong>Consultation fee:</strong> ₹{confirmation?.amount}
