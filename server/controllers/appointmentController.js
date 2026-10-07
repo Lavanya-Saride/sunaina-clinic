@@ -47,7 +47,7 @@ export const createAppointment = async (req, res, next) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Your appointment request has been received. It will be confirmed once the clinic verifies your payment.',
+      message: 'Your appointment request has been received.',
       data: {
         appointmentId: appointment._id,
         appointmentNumber: appointment.appointmentNumber,

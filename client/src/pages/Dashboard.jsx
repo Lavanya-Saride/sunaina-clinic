@@ -13,7 +13,6 @@ import {
   createOfflineAppointment,
   fetchAppointments,
   markAttendance,
-  retryAutomation,
 } from '../services/dashboardService';
 import { EMPTY_FILTERS, STATUS_TABS, getErrorMessage } from '../utils/dashboard';
 import { createPoller } from '../utils/polling';
@@ -291,7 +290,6 @@ export default function Dashboard() {
                   runAction(target, () => markAttendance(target.id, attendance), attendance === 'COMPLETED' ? `${target.fullName} marked as completed.` : `${target.fullName} marked as absent.`)
                 }
                 onCancel={(target) => runAction(target, () => cancelAppointment(target.id), `Appointment for ${target.fullName} cancelled.`)}
-                onRetry={(target) => runAction(target, () => retryAutomation(target.id), 'Retry finished. Check the latest status.')}
               />
             ))}
           </div>

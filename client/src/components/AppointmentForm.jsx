@@ -447,18 +447,22 @@ export default function AppointmentForm() {
     formData.appointmentDate ===
     todayString;
 
+  const safeBookedSlots = Array.isArray(bookedSlots)
+    ? bookedSlots
+    : [];
+
   const availableSlots = useMemo(
     () =>
       TIME_SLOTS.map((slot) => ({
         slot,
         booked:
-          bookedSlots.includes(slot),
+          safeBookedSlots.includes(slot),
         past:
           isToday &&
           isPastTimeSlot(slot),
       })),
     [
-      bookedSlots,
+      safeBookedSlots,
       isToday,
     ]
   );
@@ -607,7 +611,7 @@ export default function AppointmentForm() {
       event.target.value;
 
     if (
-      bookedSlots.includes(time) ||
+      safeBookedSlots.includes(time) ||
       (
         isToday &&
         isPastTimeSlot(time)
@@ -655,7 +659,7 @@ export default function AppointmentForm() {
     }
 
     if (
-      bookedSlots.includes(
+      safeBookedSlots.includes(
         formData.timeSlot
       ) ||
       (
@@ -815,10 +819,7 @@ export default function AppointmentForm() {
         setIsSuccess(false);
 
         setMessage(
-          error?.response?.data
-            ?.message ||
-            error.message ||
-            appointment.genericError ||
+          appointment.genericError ||
             'Something went wrong. Please try again.'
         );
       }
@@ -1219,55 +1220,29 @@ export default function AppointmentForm() {
           </div>
 
           {displayedMessage && (
-            <div
-              role="alert"
-              className={`rounded-xl border px-4 py-3 text-[clamp(0.7rem,1.7vw,0.875rem)] leading-relaxed ${
-                isSuccess
-                  ? 'border-green-200 bg-green-50 text-green-700'
-                  : 'border-red-200 bg-red-50 text-red-600'
-              }`}
-            >
-              {displayedMessage}
-            </div>
-          )}
-
-          {confirmation && (
-            <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-[clamp(0.7rem,1.6vw,0.8rem)] leading-relaxed text-green-800">
-              <p className="break-words">
-                <strong>
-                  {appointment.confirmationId ||
-                    'Appointment Number'}
-                  :
-                </strong>{' '}
-                {confirmation.appointmentNumber}
-              </p>
-
-              <p className="mt-1">
-                <strong>
-                  {appointment.amountDue ||
-                    'Consultation fee'}
-                  :
-                </strong>{' '}
-                ₹{confirmation.amount}
-              </p>
-
-              {confirmation.upiId && (
-                <p className="mt-1 break-all">
-                  <strong>
-                    {appointment.payToUpi ||
-                      'Pay by UPI'}
-                    :
-                  </strong>{' '}
-                  {confirmation.upiId}
-                </p>
-              )}
-
-              <p className="mt-2">
-                {appointment.paymentInstructions ||
-                  'Please complete the payment with the clinic. Your appointment is confirmed once the clinic verifies it, and you will then receive the details by email.'}
-              </p>
-            </div>
-          )}
+              <div
+                role="alert"
+                className={`rounded-xl border px-4 py-3 text-[clamp(0.7rem,1.7vw,0.875rem)] leading-relaxed ${
+                  isSuccess
+                    ? 'border-green-200 bg-green-50 text-green-700'
+                    : 'border-red-200 bg-red-50 text-red-600'
+                }`}
+              >
+                {isSuccess ? (
+                  <>
+                    <p>
+                      Your appointment request has been received. Our clinician will
+                      contact you soon to confirm the payment.
+                    </p>
+                    <p className="mt-2">
+                      <strong>Consultation fee:</strong> ₹{confirmation?.amount}
+                    </p>
+                  </>
+                ) : (
+                  displayedMessage
+                )}
+              </div>
+            )}
 
           <button
             type="submit"

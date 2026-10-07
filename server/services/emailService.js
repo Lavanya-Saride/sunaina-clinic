@@ -17,9 +17,23 @@ export function getCompanyDomain() {
   return (process.env.COMPANY_EMAIL_DOMAIN?.trim() || 'sunaina-clinic.com').toLowerCase();
 }
 
+export function getSenderMailbox() {
+  const address = process.env.EMAIL_APPOINTMENTS?.trim().toLowerCase();
+
+  if (!address) {
+    throw new Error('EMAIL_APPOINTMENTS is not configured.');
+  }
+
+  if (!address.endsWith(`@${getCompanyDomain()}`)) {
+    throw new Error(`EMAIL_APPOINTMENTS must be a ${getCompanyDomain()} address.`);
+  }
+
+  return address;
+}
+
 export function getMailbox(name) {
   const [envKey, fallback] = MAILBOX_DEFAULTS[name];
-  const address = (process.env[envKey]?.trim() || fallback).toLowerCase();
+  const address = (process.env[envKey]?.trim() || process.env.EMAIL_APPOINTMENTS?.trim() || fallback).toLowerCase();
 
   if (!address.endsWith(`@${getCompanyDomain()}`)) {
     throw new Error(`${envKey} must be a ${getCompanyDomain()} address.`);
@@ -188,7 +202,7 @@ export async function sendAppointmentConfirmationToPatient(appointment) {
   });
 
   return sendMail({
-    from: getMailbox('appointments'),
+    from: getSenderMailbox(),
     to: appointment.email,
     subject: `Appointment Confirmed - ${subjectWhen(appointment)}`,
     ...content,
@@ -205,7 +219,7 @@ export async function sendAppointmentReminderToPatient(appointment) {
   });
 
   return sendMail({
-    from: getMailbox('appointments'),
+    from: getSenderMailbox(),
     to: appointment.email,
     subject: `Appointment Reminder - ${subjectWhen(appointment)}`,
     ...content,
@@ -218,7 +232,7 @@ export async function sendFeedbackRequestToPatient(appointment, feedbackUrl) {
   const name = appointment.fullName;
 
   return sendMail({
-    from: getMailbox('appointments'),
+    from: getSenderMailbox(),
     to: appointment.email,
     subject: 'How was your visit to Sunaina Clinic?',
     text: `
@@ -248,7 +262,7 @@ export async function sendAppointmentConfirmationToClinic(appointment) {
     : `<strong>Directions:</strong> <a href="${escapeHtml(CLINIC_MAPS_URL)}">Get Directions to Sunaina Clinic</a>`;
 
   return sendMail({
-    from: getMailbox('appointments'),
+    from: getSenderMailbox(),
     to: getMailbox('appointments'),
     subject: 'New Confirmed Appointment',
     text: `
@@ -288,7 +302,7 @@ ${locationText}
 
 export async function sendCallbackRequest({ name, phone }) {
   return sendMail({
-    from: getMailbox('support'),
+    from: getSenderMailbox(),
     to: getMailbox('support'),
     subject: 'Patient Callback Request',
     text: `A patient has requested a callback.\n\nName: ${name}\nPhone: ${phone}`,

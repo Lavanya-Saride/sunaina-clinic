@@ -31,8 +31,9 @@ describe('emailService (Gmail API faked, no real network call)', () => {
       GOOGLE_CLIENT_SECRET: 'secret',
       GOOGLE_REFRESH_TOKEN: 'refresh',
     };
+    process.env.EMAIL_APPOINTMENTS = 'sender@sunaina-clinic.com';
     delete process.env.EMAIL_APPOINTMENTS;
-    delete process.env.EMAIL_SUPPORT;
+    process.env.EMAIL_SUPPORT = 'support@sunaina-clinic.com';
     clearGoogleTokenCache();
     fake.reset();
   });
@@ -44,14 +45,14 @@ describe('emailService (Gmail API faked, no real network call)', () => {
   test('appointment emails are sent from the appointments company mailbox', async () => {
     await sendAppointmentConfirmationToPatient(appointment);
     assert.equal(fake.state.emails.length, 1);
-    assert.match(fake.state.emails[0].from, /<appointments@sunaina-clinic\.com>/);
+    assert.match(fake.state.emails[0].from, /<sender@sunaina-clinic\.com>/);
     assert.equal(fake.state.emails[0].to, 'asha@example.com');
     assert.match(fake.state.emails[0].subject, /Appointment Confirmed/);
   });
 
   test('callback requests are sent from and to the support mailbox', async () => {
     await sendCallbackRequest({ name: 'Asha', phone: '9876543210' });
-    assert.match(fake.state.emails[0].from, /<support@sunaina-clinic\.com>/);
+    assert.match(fake.state.emails[0].from, /<sender@sunaina-clinic\.com>/);
     assert.equal(fake.state.emails[0].to, 'support@sunaina-clinic.com');
   });
 

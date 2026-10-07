@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarDays, Clock, Mail, Phone, RefreshCw, Video } from 'lucide-react';
+import { CalendarDays, Clock, Mail, Phone, Video } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import {
   PAYMENT_METHOD_OPTIONS,
@@ -7,7 +7,6 @@ import {
   STATUS_TONES,
   formatDate,
   formatDateTime,
-  canRetryAutomation,
   isAwaitingAttendance,
 } from '../../utils/dashboard';
 
@@ -36,11 +35,10 @@ function Detail({ icon: Icon, label, children }) {
   );
 }
 
-export default function AppointmentCard({ appointment, can, busy, onConfirmPayment, onAttendance, onCancel, onRetry }) {
+export default function AppointmentCard({ appointment, can, busy, onConfirmPayment, onAttendance, onCancel }) {
   const [pendingAction, setPendingAction] = useState(null);
   const paymentMethod = PAYMENT_METHOD_OPTIONS.find((option) => option.value === appointment.paymentMethod)?.label || appointment.paymentMethod;
   const awaiting = isAwaitingAttendance(appointment);
-  const failed = canRetryAutomation(appointment);
   const phoneHref = `tel:${appointment.phoneNumber.replace(/[^\d+]/g, '')}`;
 
   const runPending = async () => {
@@ -160,16 +158,6 @@ export default function AppointmentCard({ appointment, can, busy, onConfirmPayme
           {appointment.attendanceMarkedAt && <>Attendance marked by {appointment.attendanceMarkedBy || 'staff'} on {formatDateTime(appointment.attendanceMarkedAt)}. </>}
           {appointment.cancelReason && <>Reason: {appointment.cancelReason}.</>}
         </p>
-      )}
-
-      {failed && can('automation:retry') && (
-        <div className="space-y-3 rounded-xl border border-red-200 bg-red-50 p-3">
-          <p className="text-[0.75rem] leading-relaxed text-red-600">Some calendar or message steps did not complete. The appointment itself is not affected.</p>
-          <button type="button" onClick={() => onRetry(appointment)} disabled={busy} className={outlineButton}>
-            <RefreshCw size={15} aria-hidden="true" />
-            Retry failed steps
-          </button>
-        </div>
       )}
 
       {actions && <div className="border-t border-line pt-4">{actions}</div>}

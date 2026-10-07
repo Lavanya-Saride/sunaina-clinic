@@ -18,6 +18,7 @@ export default function FeedbackCard({
   source,
   authorUrl,
   reviewUrl,
+  date,
 }) {
   return (
     <article className="flex h-full min-h-[220px] w-full flex-col rounded-2xl border border-line bg-white p-4 shadow-card transition-all duration-300 hover:-translate-y-1 hover:scale-[1.01] hover:shadow-lg xs:min-h-[230px] xs:p-5">
@@ -55,6 +56,16 @@ export default function FeedbackCard({
           ) : (
             <p className="break-words text-[clamp(0.68rem,1.5vw,0.6875rem)] font-semibold text-ink">
               {name}
+            </p>
+          )}
+
+          {date && (
+            <p className="mt-0.5 text-[0.6rem] text-ink/60">
+              {new Date(date).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+              })}
             </p>
           )}
 

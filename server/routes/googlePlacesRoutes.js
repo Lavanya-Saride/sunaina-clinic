@@ -25,6 +25,8 @@ router.get('/reviews', async (req, res, next) => {
           relativePublishTimeDescription:
             review.relativePublishTimeDescription ||
             '',
+          publishTime:
+            review.publishTime || '',
           reviewUrl:
             review.googleMapsUri ||
             place.googleMapsUri ||

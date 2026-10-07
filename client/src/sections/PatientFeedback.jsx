@@ -7,7 +7,7 @@ import Carousel from '../components/Carousel';
 import FeedbackCard from '../components/FeedbackCard';
 import FeedbackSkeleton from '../components/FeedbackSkeleton';
 import StateMessage from '../components/StateMessage';
-import useFeedback from '../hooks/useFeedback';
+import useGoogleReviews from '../hooks/useGoogleReviews';
 import { SITE_CONTENT } from '../utils/constants';
 
 const hoverClass =
@@ -18,12 +18,11 @@ export default function PatientFeedback() {
     data,
     status,
     refetch,
-  } = useFeedback();
+  } = useGoogleReviews();
 
-  const { feedback } =
-    SITE_CONTENT;
-
-  const feedbackItems = data.slice(
+  const { feedback } = SITE_CONTENT;
+  const reviews = data?.place?.reviews ?? [];
+  const feedbackItems = reviews.slice(
     0,
     feedback.latestCount
   );
@@ -47,19 +46,13 @@ export default function PatientFeedback() {
           </Link>
         </div>
 
-        {status === 'loading' && (
-          <FeedbackSkeleton />
-        )}
+        {status === 'loading' && <FeedbackSkeleton />}
 
         {status === 'error' && (
           <StateMessage
             icon={WifiOff}
-            title={
-              feedback.loadErrorTitle
-            }
-            description={
-              feedback.loadErrorDescription
-            }
+            title={feedback.loadErrorTitle}
+            description={feedback.loadErrorDescription}
             action={
               <button
                 type="button"
@@ -72,48 +65,43 @@ export default function PatientFeedback() {
           />
         )}
 
-        {status === 'success' &&
-          data.length === 0 && (
-            <StateMessage
-              icon={MessageSquareHeart}
-              title={
-                feedback.emptyTitle
-              }
-              description={
-                feedback.emptyDescription
-              }
-              action={
-                <Link
-                  to="/feedback"
-                  className={`inline-block rounded-full border border-line px-4 py-2 text-[clamp(0.75rem,1.6vw,0.875rem)] font-semibold text-maroon ${hoverClass}`}
-                >
-                  {feedback.share}
-                </Link>
-              }
-            />
-          )}
+        {status === 'success' && feedbackItems.length === 0 && (
+          <StateMessage
+            icon={MessageSquareHeart}
+            title={feedback.emptyTitle}
+            description={feedback.emptyDescription}
+            action={
+              <Link
+                to="/feedback"
+                className={`inline-block rounded-full border border-line px-4 py-2 text-[clamp(0.75rem,1.6vw,0.875rem)] font-semibold text-maroon ${hoverClass}`}
+              >
+                {feedback.share}
+              </Link>
+            }
+          />
+        )}
 
-        {status === 'success' &&
-          data.length > 0 && (
-            <Carousel
-              items={feedbackItems}
-              ariaLabel={
-                feedback.ariaLabel
-              }
-              autoplayDelay={
-                feedback.autoplayDelay
-              }
-              showDots
-              loop={feedbackItems.length > 3}
-              slideClassName="flex-[0_0_100%] sm:flex-[0_0_calc((100%_-_0.75rem)/2)] lg:flex-[0_0_calc((100%_-_1.5rem)/3)]"
-              renderItem={(item) => (
-                <FeedbackCard
-                  name={item.name}
-                  story={item.story}
-                />
-              )}
-            />
-          )}
+        {status === 'success' && feedbackItems.length > 0 && (
+          <Carousel
+            items={feedbackItems}
+            ariaLabel={feedback.ariaLabel}
+            autoplayDelay={feedback.autoplayDelay}
+            showDots
+            loop={feedbackItems.length > 3}
+            slideClassName="flex-[0_0_100%] sm:flex-[0_0_calc((100%_-_0.75rem)/2)] lg:flex-[0_0_calc((100%_-_1.5rem)/3)]"
+            renderItem={(item) => (
+              <FeedbackCard
+                name={item.name}
+                story={item.story}
+                rating={item.rating}
+                source="google"
+                authorUrl={item.authorUrl}
+                reviewUrl={item.reviewUrl}
+                date={item.publishTime}
+              />
+            )}
+          />
+        )}
       </div>
     </section>
   );

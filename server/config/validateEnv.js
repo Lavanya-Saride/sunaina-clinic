@@ -76,7 +76,11 @@ export function validateEnv(env = process.env) {
 
   const domain = (env.COMPANY_EMAIL_DOMAIN?.trim() || 'sunaina-clinic.com').toLowerCase();
 
-  for (const name of ['EMAIL_APPOINTMENTS', 'EMAIL_SUPPORT']) {
+  if (production && !has('EMAIL_APPOINTMENTS')) {
+    warnings.push('EMAIL_APPOINTMENTS is not set. Gmail must send from the Google account used to authorize the Gmail API.');
+  }
+
+  for (const name of ['EMAIL_APPOINTMENTS', 'EMAIL_APPOINTMENTS', 'EMAIL_SUPPORT']) {
     if (has(name) && !env[name].trim().toLowerCase().endsWith(`@${domain}`)) {
       warnings.push(`${name} must be an address on the company email domain. Sending will be refused.`);
     }

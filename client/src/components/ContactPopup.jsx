@@ -326,6 +326,14 @@ export default function ContactPopup({
               </div>
             </div>
 
+            <a
+              href={CLINIC.phoneHref}
+              className="mt-4 flex min-h-11 items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 py-3 text-[clamp(0.8rem,2vw,0.875rem)] font-semibold text-maroon transition hover:bg-blush"
+            >
+              <Phone size={17} aria-hidden="true" />
+              <span>{CLINIC.phone}</span>
+            </a>
+
             {isClinicOpen && (
               <>
                 <div className="mt-5 space-y-3">
