@@ -89,8 +89,8 @@ export async function createOfflineAppointment(payload) {
   return response.data.data;
 }
 
-export async function confirmPayment(id, payload) {
-  const response = await api.post(`/dashboard/appointments/${id}/confirm-payment`, payload);
+export async function confirmPayment(id) {
+  const response = await api.post(`/dashboard/appointments/${id}/confirm-payment`);
   return response.data.data;
 }
 

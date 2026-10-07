@@ -1,8 +1,6 @@
-import { useState } from 'react';
 import { CalendarDays, Clock, Mail, Phone, Video } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import {
-  PAYMENT_METHOD_OPTIONS,
   STATUS_TABS,
   STATUS_TONES,
   formatDate,
@@ -17,12 +15,6 @@ const outlineButton =
 
 const STATUS_LABELS = Object.fromEntries(STATUS_TABS.map((tab) => [tab.value, tab.label.split(' /')[0]]));
 
-const CONFIRM_COPY = {
-  COMPLETED: { prompt: 'Mark this visit as completed? A feedback request will be sent.', yes: 'Yes, completed' },
-  ABSENT: { prompt: 'Mark the patient as absent? No feedback will be requested.', yes: 'Yes, absent' },
-  CANCEL: { prompt: 'Cancel this appointment? The time slot will be released.', yes: 'Yes, cancel' },
-};
-
 function Detail({ icon: Icon, label, children }) {
   return (
     <div className="min-w-0">
@@ -36,35 +28,10 @@ function Detail({ icon: Icon, label, children }) {
 }
 
 export default function AppointmentCard({ appointment, can, busy, onConfirmPayment, onAttendance, onCancel }) {
-  const [pendingAction, setPendingAction] = useState(null);
-  const paymentMethod = PAYMENT_METHOD_OPTIONS.find((option) => option.value === appointment.paymentMethod)?.label || appointment.paymentMethod;
   const awaiting = isAwaitingAttendance(appointment);
   const phoneHref = `tel:${appointment.phoneNumber.replace(/[^\d+]/g, '')}`;
 
-  const runPending = async () => {
-    const action = pendingAction;
-    setPendingAction(null);
-    if (action === 'CANCEL') {
-      await onCancel(appointment);
-    } else {
-      await onAttendance(appointment, action);
-    }
-  };
-
   const renderActions = () => {
-    if (pendingAction) {
-      const copy = CONFIRM_COPY[pendingAction];
-      return (
-        <div className="space-y-3">
-          <p className="text-[clamp(0.72rem,1.7vw,0.8rem)] leading-relaxed text-ink">{copy.prompt}</p>
-          <div className="grid grid-cols-2 gap-3">
-            <button type="button" onClick={runPending} disabled={busy} className={primaryButton}>{copy.yes}</button>
-            <button type="button" onClick={() => setPendingAction(null)} disabled={busy} className={outlineButton}>Go back</button>
-          </div>
-        </div>
-      );
-    }
-
     if (appointment.status === 'PENDING_PAYMENT' && (can('payments:confirm') || can('appointments:cancel'))) {
       return (
         <div className="grid grid-cols-1 gap-3 xs:grid-cols-2">
@@ -72,7 +39,7 @@ export default function AppointmentCard({ appointment, can, busy, onConfirmPayme
             <button type="button" onClick={() => onConfirmPayment(appointment)} disabled={busy} className={primaryButton}>Confirm payment</button>
           )}
           {can('appointments:cancel') && (
-            <button type="button" onClick={() => setPendingAction('CANCEL')} disabled={busy} className={outlineButton}>Cancel</button>
+            <button type="button" onClick={() => onCancel(appointment)} disabled={busy} className={outlineButton}>Cancel</button>
           )}
         </div>
       );
@@ -82,13 +49,22 @@ export default function AppointmentCard({ appointment, can, busy, onConfirmPayme
       return (
         <div className="space-y-3">
           {can('attendance:mark') && (
-            <div className="grid grid-cols-2 gap-3">
-              <button type="button" onClick={() => setPendingAction('COMPLETED')} disabled={busy} className={primaryButton}>Completed</button>
-              <button type="button" onClick={() => setPendingAction('ABSENT')} disabled={busy} className={outlineButton}>Absent</button>
+            <div className="space-y-3">
+              <p className="text-[clamp(0.78rem,1.8vw,0.85rem)] font-semibold leading-relaxed text-ink">
+                Mark this visit as completed? A feedback request will be sent.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <button type="button" onClick={() => onAttendance(appointment, 'COMPLETED')} disabled={busy} className={primaryButton}>
+                  Completed
+                </button>
+                <button type="button" onClick={() => onAttendance(appointment, 'ABSENT')} disabled={busy} className={outlineButton}>
+                  Absent
+                </button>
+              </div>
             </div>
           )}
           {can('appointments:cancel') && (
-            <button type="button" onClick={() => setPendingAction('CANCEL')} disabled={busy} className="min-h-11 w-full text-[clamp(0.72rem,1.7vw,0.8rem)] font-semibold text-muted underline-offset-2 hover:text-maroon hover:underline">
+            <button type="button" onClick={() => onCancel(appointment)} disabled={busy} className="min-h-11 w-full text-[clamp(0.72rem,1.7vw,0.8rem)] font-semibold text-muted underline-offset-2 hover:text-maroon hover:underline">
               Cancel appointment
             </button>
           )}
@@ -102,7 +78,7 @@ export default function AppointmentCard({ appointment, can, busy, onConfirmPayme
   const actions = renderActions();
 
   return (
-    <article className="flex min-w-0 flex-col gap-4 rounded-2xl border border-line bg-white p-4 shadow-card xs:p-5">
+    <article className="flex h-full min-w-0 flex-col gap-4 rounded-2xl border border-line bg-white p-4 shadow-card xs:p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="break-words text-[clamp(0.95rem,2.4vw,1.05rem)] font-semibold leading-snug text-ink">{appointment.fullName}</h3>
@@ -144,17 +120,16 @@ export default function AppointmentCard({ appointment, can, busy, onConfirmPayme
 
       <div className="flex flex-wrap gap-1.5">
         <StatusBadge tone="neutral">{appointment.source === 'OFFLINE' ? 'Offline patient' : 'Website'}</StatusBadge>
-        <StatusBadge tone={appointment.whatsappOptIn ? 'success' : 'neutral'}>{appointment.whatsappOptIn ? 'WhatsApp opted in' : 'No WhatsApp consent'}</StatusBadge>
         {awaiting && <StatusBadge tone="warning">Awaiting attendance</StatusBadge>}
         {appointment.status === 'COMPLETED' && (
           <StatusBadge tone={appointment.feedbackRequested ? 'success' : 'neutral'}>{appointment.feedbackRequested ? 'Feedback requested' : 'Feedback eligible'}</StatusBadge>
         )}
       </div>
 
-      {(paymentMethod || appointment.attendanceMarkedAt || appointment.cancelReason || appointment.status === 'PENDING_PAYMENT') && (
+      {(appointment.attendanceMarkedAt || appointment.cancelReason || appointment.status === 'PENDING_PAYMENT') && (
         <p className="break-words text-[0.72rem] leading-relaxed text-muted">
           {appointment.status === 'PENDING_PAYMENT' && appointment.holdExpiresAt && <>Held until {formatDateTime(appointment.holdExpiresAt)}. </>}
-          {appointment.paymentConfirmedAt && <>Paid via {paymentMethod}{appointment.paymentReference ? ` (${appointment.paymentReference})` : ''}, confirmed by {appointment.paymentConfirmedBy || 'staff'} on {formatDateTime(appointment.paymentConfirmedAt)}. </>}
+          {appointment.paymentConfirmedAt && <>Payment confirmed by {appointment.paymentConfirmedBy || 'staff'} on {formatDateTime(appointment.paymentConfirmedAt)}. </>}
           {appointment.attendanceMarkedAt && <>Attendance marked by {appointment.attendanceMarkedBy || 'staff'} on {formatDateTime(appointment.attendanceMarkedAt)}. </>}
           {appointment.cancelReason && <>Reason: {appointment.cancelReason}.</>}
         </p>

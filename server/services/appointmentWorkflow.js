@@ -8,6 +8,7 @@ import {
 } from './googleCalendarService.js';
 import {
   sendAppointmentConfirmationToClinic,
+  sendNewAppointmentToClinic,
   sendAppointmentConfirmationToPatient,
   sendAppointmentReminderToPatient,
   sendFeedbackRequestToPatient,
@@ -261,15 +262,8 @@ async function sendPatientWhatsApp(id, field, manual, requiredStatus, sender) {
   );
 }
 
-export async function runConfirmationAutomation(id, { manual = false } = {}) {
-  const appointment = await Appointment.findById(id).select('status').lean();
 
-  if (!appointment || appointment.status !== 'CONFIRMED') {
-    return;
-  }
-
-  await syncCalendar(id, manual);
-
+export async function sendConfirmationEmails(id, { manual = false } = {}) {
   await sendPatientEmail(id, 'patientEmailStatus', manual, 'CONFIRMED', sendAppointmentConfirmationToPatient);
 
   await runStep(
@@ -281,6 +275,16 @@ export async function runConfirmationAutomation(id, { manual = false } = {}) {
     },
     { requiredStatus: 'CONFIRMED' }
   );
+}
+
+export async function runConfirmationAutomation(id, { manual = false } = {}) {
+  const appointment = await Appointment.findById(id).select('status').lean();
+
+  if (!appointment || appointment.status !== 'CONFIRMED') {
+    return;
+  }
+
+  await syncCalendar(id, manual);
 
   await sendPatientWhatsApp(id, 'patientWhatsappStatus', manual, 'CONFIRMED', sendPatientConfirmationWhatsApp);
 
@@ -330,7 +334,7 @@ export async function requestFeedback(id, { manual = false } = {}) {
   );
 }
 
-export async function confirmPayment(id, { method, amount, reference, user }) {
+export async function confirmPayment(id, { user }) {
   const existing = await Appointment.findById(id).select('status fee').lean();
 
   if (!existing) {
@@ -340,14 +344,11 @@ export async function confirmPayment(id, { method, amount, reference, user }) {
   const update = {
     status: 'CONFIRMED',
     paymentStatus: 'PAID',
-    paymentMethod: method,
-    paymentAmount: amount ?? existing.fee,
+    paymentAmount: existing.fee,
     paymentConfirmedAt: new Date(),
     paymentConfirmedBy: user.id,
     holdExpiresAt: null,
   };
-
-  if (reference) update.paymentReference = reference;
 
   const confirmed = await Appointment.findOneAndUpdate(
     { _id: id, status: 'PENDING_PAYMENT' },
@@ -390,10 +391,6 @@ export async function markAttendance(id, { status, user }) {
 
   if (!updated) {
     throw new WorkflowError(`Attendance can only be marked for confirmed appointments. This appointment is ${existing.status.replace('_', ' ').toLowerCase()}.`);
-  }
-
-  if (status === 'COMPLETED') {
-    await requestFeedback(id);
   }
 
   return Appointment.findById(id);
@@ -464,6 +461,7 @@ export async function retryAutomation(id) {
 
   if (appointment.status === 'CONFIRMED') {
     await runConfirmationAutomation(id, { manual: true });
+    await sendConfirmationEmails(id, { manual: true });
 
     if ([appointment.reminderEmailStatus, appointment.reminderWhatsappStatus].includes('FAILED')) {
       await sendReminder(id, { manual: true });

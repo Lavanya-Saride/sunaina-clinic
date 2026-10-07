@@ -4,7 +4,6 @@ import { ChevronLeft, ChevronRight, Loader2, LogOut, Plus, RefreshCw } from 'luc
 import AppointmentCard from '../components/dashboard/AppointmentCard';
 import AppointmentFilters from '../components/dashboard/AppointmentFilters';
 import OfflineAppointmentModal from '../components/dashboard/OfflineAppointmentModal';
-import PaymentModal from '../components/dashboard/PaymentModal';
 import StatusBadge from '../components/dashboard/StatusBadge';
 import { useAuth } from '../context/useAuth';
 import {
@@ -39,11 +38,10 @@ export default function Dashboard() {
   const [loadError, setLoadError] = useState('');
   const [notice, setNotice] = useState(null);
   const [busyId, setBusyId] = useState('');
-  const [paymentTarget, setPaymentTarget] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
-  const { dateFrom, dateTo, paymentStatus, consultationType, source } = filters;
+  const { dateFrom, dateTo } = filters;
   const defaultSort = STATUS_TABS.find((item) => item.value === tab).defaultSort;
   const sort = sortOverride || defaultSort;
 
@@ -70,11 +68,8 @@ export default function Dashboard() {
     if (search) params.search = search;
     if (dateFrom) params.dateFrom = dateFrom;
     if (dateTo) params.dateTo = dateTo;
-    if (paymentStatus) params.paymentStatus = paymentStatus;
-    if (consultationType) params.consultationType = consultationType;
-    if (source) params.source = source;
     return JSON.stringify({ params, reloadKey });
-  }, [tab, sort, page, search, dateFrom, dateTo, paymentStatus, consultationType, source, reloadKey]);
+  }, [tab, sort, page, search, dateFrom, dateTo, reloadKey]);
 
   useEffect(() => {
     if (status !== 'authenticated') return undefined;
@@ -158,22 +153,20 @@ export default function Dashboard() {
   const handleCreate = async (payload) => {
     const created = await createOfflineAppointment(payload);
     setShowCreate(false);
-    changeTab(created.status === 'CONFIRMED' ? 'CONFIRMED' : 'PENDING_PAYMENT');
-    setNotice({ tone: 'success', text: created.status === 'CONFIRMED' ? 'Appointment created and confirmed.' : 'Appointment created. Confirm payment to complete the booking.' });
+    changeTab('COMPLETED');
+    setNotice({ tone: 'success', text: 'Appointment created and marked as completed.' });
     reload();
   };
 
-  const handleConfirmPayment = async (payload) => {
-    const target = paymentTarget;
-    await confirmPayment(target.id, payload);
-    setPaymentTarget(null);
-    setNotice({ tone: 'success', text: `Payment confirmed for ${target.fullName}.` });
+  const handleConfirmPayment = async (appointment) => {
+    await confirmPayment(appointment.id);
+    setNotice({ tone: 'success', text: `Payment confirmed for ${appointment.fullName}.` });
     reload();
   };
 
   const { items, counts, pagination } = result;
   const loading = result.key !== queryKey;
-  const activeFilterCount = countActiveFilters(filters) + (sortOverride ? 1 : 0);
+  const activeFilterCount = (filters.search ? 1 : 0) + (sortOverride ? 1 : 0);
 
   return (
     <div className="min-h-screen bg-cream">
@@ -241,13 +234,11 @@ export default function Dashboard() {
         <AppointmentFilters
           filters={filters}
           sort={sort}
-          activeCount={activeFilterCount}
           onFiltersChange={handleFiltersChange}
           onSortChange={(value) => {
             setSortOverride(value === defaultSort ? null : value);
             setPage(1);
           }}
-          onClear={clearFilters}
         />
 
         {notice && (
@@ -285,7 +276,7 @@ export default function Dashboard() {
                 appointment={appointment}
                 can={can}
                 busy={busyId === appointment.id}
-                onConfirmPayment={setPaymentTarget}
+                onConfirmPayment={(target) => runAction(target, () => handleConfirmPayment(target), `Payment confirmed for ${target.fullName}.`)}
                 onAttendance={(target, attendance) =>
                   runAction(target, () => markAttendance(target.id, attendance), attendance === 'COMPLETED' ? `${target.fullName} marked as completed.` : `${target.fullName} marked as absent.`)
                 }
@@ -310,8 +301,7 @@ export default function Dashboard() {
         )}
       </main>
 
-      {paymentTarget && <PaymentModal appointment={paymentTarget} onClose={() => setPaymentTarget(null)} onSubmit={handleConfirmPayment} />}
-      {showCreate && <OfflineAppointmentModal canRecordPayment={can('payments:confirm')} onClose={() => setShowCreate(false)} onSubmit={handleCreate} />}
+      {showCreate && <OfflineAppointmentModal onClose={() => setShowCreate(false)} onSubmit={handleCreate} />}
     </div>
   );
 }

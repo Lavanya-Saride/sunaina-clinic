@@ -20,9 +20,6 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showContact, setShowContact] = useState(false);
 
-  const locality =
-    CLINIC.address.lines[CLINIC.address.lines.length - 1];
-
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 8);
 
@@ -100,7 +97,7 @@ export default function Navbar() {
               ))}
             </nav>
 
-            <div className="hidden min-w-0 shrink-0 flex-col items-end gap-0.5 text-right lg:flex">
+            <div className="hidden min-w-0 max-w-[360px] shrink-0 flex-col items-end gap-0.5 text-right lg:flex">
               <button
                 type="button"
                 onClick={() => setShowContact(true)}
@@ -115,10 +112,10 @@ export default function Navbar() {
                 target="_blank"
                 rel="noopener noreferrer"
                 title={CLINIC.address.full}
-                className={`${contactLink} max-w-[220px] text-[0.6875rem] text-muted hover:text-maroon`}
+                className={`${contactLink} max-w-[360px] items-start text-[0.6875rem] leading-snug text-muted hover:text-maroon`}
               >
                 <MapPin size={13} aria-hidden="true" className="shrink-0" />
-                <span className="truncate">{locality}</span>
+                <span className="break-words">{CLINIC.address.full}</span>
               </a>
             </div>
 

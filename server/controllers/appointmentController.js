@@ -4,6 +4,7 @@ import {
   getUnavailableSlots,
   releaseExpiredHolds,
 } from '../services/appointmentService.js';
+import { sendNewAppointmentToClinic } from '../services/emailService.js';
 
 export const getBookedSlots = async (req, res, next) => {
   try {
@@ -45,9 +46,20 @@ export const createAppointment = async (req, res, next) => {
       withHold: true,
     });
 
+    try {
+      await sendNewAppointmentToClinic(appointment);
+    } catch (emailError) {
+      console.error('APPOINTMENT EMAIL ERROR:', {
+        message: emailError.message,
+        name: emailError.name,
+        code: emailError.code,
+        status: emailError.status,
+      });
+    }
+
     return res.status(201).json({
       success: true,
-      message: 'Your appointment request has been received.',
+      message: 'Your appointment request has been received. Our clinician will contact you soon to take the payment.',
       data: {
         appointmentId: appointment._id,
         appointmentNumber: appointment.appointmentNumber,

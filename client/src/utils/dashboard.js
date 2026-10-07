@@ -27,37 +27,10 @@ export const SORT_OPTIONS = [
   { value: 'patientName:desc', label: 'Name: Z to A' },
 ];
 
-export const PAYMENT_METHOD_OPTIONS = [
-  { value: 'UPI', label: 'UPI' },
-  { value: 'CASH', label: 'Cash' },
-  { value: 'BANK_TRANSFER', label: 'Bank transfer' },
-  { value: 'OTHER', label: 'Other' },
-];
-
-export const PAYMENT_STATUS_OPTIONS = [
-  { value: 'PENDING', label: 'Pending' },
-  { value: 'PAID', label: 'Paid' },
-  { value: 'FAILED', label: 'Failed' },
-  { value: 'REFUNDED', label: 'Refunded' },
-];
-
-export const CONSULTATION_OPTIONS = [
-  { value: 'offline', label: 'Clinic consultation' },
-  { value: 'virtual', label: 'Virtual consultation' },
-];
-
-export const SOURCE_OPTIONS = [
-  { value: 'WEBSITE', label: 'Website' },
-  { value: 'OFFLINE', label: 'Offline' },
-];
-
 export const EMPTY_FILTERS = {
   search: '',
-  dateFrom: '',
-  dateTo: '',
-  paymentStatus: '',
-  consultationType: '',
-  source: '',
+  dateFrom: getIndianToday(),
+  dateTo: getIndianToday(),
 };
 
 export function getIndianToday() {

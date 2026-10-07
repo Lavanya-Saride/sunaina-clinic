@@ -112,8 +112,8 @@ const paymentFields = (prefix = '') => {
   ];
 };
 
-export const confirmPaymentRules = paymentFields();
-export const rejectUnknownPaymentFields = rejectUnknownFieldsFrom(['method', 'amount', 'reference']);
+export const confirmPaymentRules = [];
+export const rejectUnknownPaymentFields = rejectUnknownFieldsFrom([]);
 
 export const attendanceRules = [
   body('status')

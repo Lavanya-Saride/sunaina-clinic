@@ -64,6 +64,7 @@ export async function createAppointmentRecord({
   optInSource,
   recordedBy,
   withHold,
+  initialStatus = 'PENDING_PAYMENT',
 }) {
   await releaseExpiredHolds({ appointmentDate, timeSlot });
 
@@ -96,7 +97,7 @@ export async function createAppointmentRecord({
       email: sanitizePlainText(email || '').toLowerCase(),
       fee: getConsultationFee(consultationType),
       currency: 'INR',
-      status: 'PENDING_PAYMENT',
+      status: initialStatus,
       paymentStatus: 'PENDING',
       holdExpiresAt: withHold ? new Date(Date.now() + PAYMENT_HOLD_HOURS * 60 * 60 * 1000) : null,
       meetingStatus: consultationType === 'virtual' ? 'PENDING' : 'NOT_REQUIRED',

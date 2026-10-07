@@ -4,11 +4,7 @@ import FormField from '../FormField';
 import { TIME_SLOTS } from '../../utils/constants';
 import { getBookedSlots } from '../../services/appointmentService';
 import { searchPatients } from '../../services/dashboardService';
-import {
-  PAYMENT_METHOD_OPTIONS,
-  getErrorMessage,
-  getIndianToday,
-} from '../../utils/dashboard';
+import { getErrorMessage, getIndianToday } from '../../utils/dashboard';
 
 const PHONE_REGEX = /^(?:\+91[\s-]?)?[6-9]\d{9}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -21,13 +17,10 @@ const EMPTY = {
   appointmentDate: '',
   timeSlot: '',
   whatsappOptIn: false,
-  paymentReceived: false,
-  method: '',
-  amount: '',
-  reference: '',
+
 };
 
-export default function OfflineAppointmentModal({ canRecordPayment, onClose, onSubmit }) {
+export default function OfflineAppointmentModal({ onClose, onSubmit }) {
   const [form, setForm] = useState(EMPTY);
   const [bookedSlots, setBookedSlots] = useState([]);
   const [lookup, setLookup] = useState('');
@@ -99,7 +92,6 @@ export default function OfflineAppointmentModal({ canRecordPayment, onClose, onS
 
     const phone = form.phoneNumber.trim().replace(/[\s-]/g, '');
     const email = form.email.trim();
-    const amount = Number(form.amount);
 
     let problem = '';
 
@@ -115,14 +107,6 @@ export default function OfflineAppointmentModal({ canRecordPayment, onClose, onS
       problem = 'The clinic is closed on Sundays.';
     } else if (!form.timeSlot) {
       problem = 'Please select a time slot.';
-    } else if (form.paymentReceived && !form.method) {
-      problem = 'Please select the payment method.';
-    } else if (
-      form.paymentReceived &&
-      form.amount &&
-      (!Number.isFinite(amount) || amount < 1)
-    ) {
-      problem = 'Please enter a valid amount.';
     }
 
     if (problem) {
@@ -143,13 +127,6 @@ export default function OfflineAppointmentModal({ canRecordPayment, onClose, onS
       payload.email = email;
     }
 
-    if (form.paymentReceived) {
-      payload.payment = {
-        method: form.method,
-        ...(form.amount ? { amount } : {}),
-        ...(form.reference.trim() ? { reference: form.reference.trim() } : {}),
-      };
-    }
 
     setSubmitting(true);
     setError('');
@@ -260,57 +237,7 @@ export default function OfflineAppointmentModal({ canRecordPayment, onClose, onS
           />
         </div>
 
-        {canRecordPayment && (
-          <div className="space-y-5 rounded-2xl border border-line bg-cream/60 p-4">
-            <label className="flex min-h-11 cursor-pointer items-start gap-3 text-[clamp(0.75rem,1.8vw,0.85rem)] font-semibold leading-relaxed text-ink">
-              <input
-                type="checkbox"
-                checked={form.paymentReceived}
-                onChange={set('paymentReceived')}
-                className="mt-0.5 h-5 w-5 shrink-0 accent-maroon"
-              />
-              <span>Payment already received</span>
-            </label>
 
-            {form.paymentReceived && (
-              <>
-                <FormField
-                  id="offline-method"
-                  label="Payment method"
-                  type="select"
-                  placeholder="Select method"
-                  value={form.method}
-                  onChange={set('method')}
-                  options={PAYMENT_METHOD_OPTIONS}
-                />
-
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <FormField
-                    id="offline-amount"
-                    label="Amount (₹)"
-                    type="number"
-                    inputMode="decimal"
-                    min="1"
-                    step="1"
-                    value={form.amount}
-                    onChange={set('amount')}
-                    placeholder="Default fee"
-                    required={false}
-                  />
-
-                  <FormField
-                    id="offline-reference"
-                    label="Reference"
-                    value={form.reference}
-                    onChange={set('reference')}
-                    maxLength={100}
-                    required={false}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-        )}
 
         {error && (
           <div
@@ -327,7 +254,7 @@ export default function OfflineAppointmentModal({ canRecordPayment, onClose, onS
             disabled={submitting}
             className="inline-flex min-h-11 items-center justify-center rounded-full bg-maroon px-5 text-[clamp(0.72rem,1.7vw,0.875rem)] font-semibold text-white transition-colors hover:bg-maroon-dark disabled:cursor-not-allowed disabled:opacity-60 xs:order-2"
           >
-            {submitting ? 'Saving...' : form.paymentReceived ? 'Save and confirm' : 'Save appointment'}
+            {submitting ? 'Saving...' : 'Save and confirm'}
           </button>
 
           <button

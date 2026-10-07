@@ -251,6 +251,53 @@ Share your feedback: ${feedbackUrl}
   });
 }
 
+
+export async function sendNewAppointmentToClinic(appointment) {
+  const { isVirtual, type, date, timeRange, amount } = getDetails(appointment);
+  const locationText = isVirtual
+    ? `Google Meet: ${appointment.meetUrl || 'Not available'}`
+    : `Directions: ${CLINIC_MAPS_URL}`;
+  const locationHtml = isVirtual
+    ? `<strong>Google Meet:</strong> ${appointment.meetUrl ? `<a href="${escapeHtml(appointment.meetUrl)}">Join Consultation</a>` : 'Not available'}`
+    : `<strong>Directions:</strong> <a href="${escapeHtml(CLINIC_MAPS_URL)}">Get Directions to Sunaina Clinic</a>`;
+
+  return sendMail({
+    from: getSenderMailbox(),
+    to: getMailbox('appointments'),
+    subject: 'New Appointment Request - Payment Required',
+    text: `
+A new appointment request has been received.
+
+Please contact the patient to take the appointment payment.
+
+Appointment Number: ${appointment.appointmentNumber}
+Patient: ${appointment.fullName}
+Phone: ${appointment.phoneNumber}
+Email: ${appointment.email || 'N/A'}
+Consultation: ${type}
+Date: ${date}
+Time: ${timeRange}
+Amount to Collect: ₹${amount}
+${locationText}
+    `.trim(),
+    html: `
+      <h2>New Appointment Request</h2>
+      <p>A new appointment request has been received. Please contact the patient to take the appointment payment.</p>
+      <p>
+        <strong>Appointment Number:</strong> ${escapeHtml(appointment.appointmentNumber)}<br />
+        <strong>Patient:</strong> ${escapeHtml(appointment.fullName)}<br />
+        <strong>Phone:</strong> ${escapeHtml(appointment.phoneNumber)}<br />
+        <strong>Email:</strong> ${escapeHtml(appointment.email || 'N/A')}<br />
+        <strong>Consultation:</strong> ${type}<br />
+        <strong>Date:</strong> ${escapeHtml(date)}<br />
+        <strong>Time:</strong> ${escapeHtml(timeRange)}<br />
+        <strong>Amount to Collect:</strong> ₹${escapeHtml(amount)}<br />
+        ${locationHtml}
+      </p>
+    `.trim(),
+  });
+}
+
 export async function sendAppointmentConfirmationToClinic(appointment) {
   const { isVirtual, type, date, timeRange, amount } = getDetails(appointment);
   const method = appointment.paymentMethod || 'N/A';

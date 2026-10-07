@@ -1,6 +1,5 @@
 import Appointment from '../models/Appointment.js';
 import Patient from '../models/Patient.js';
-import { hasPermission } from '../config/permissions.js';
 import {
   createAppointmentRecord,
   listAppointments,
@@ -96,15 +95,6 @@ export async function getAppointments(req, res, next) {
 
 export async function createOfflineAppointment(req, res, next) {
   try {
-    const { payment } = req.body;
-
-    if (payment && !hasPermission(req.user.role, 'payments:confirm')) {
-      return res.status(403).json({
-        success: false,
-        message: 'You do not have permission to record payments.',
-      });
-    }
-
     const appointment = await createAppointmentRecord({
       appointmentDate: req.body.appointmentDate,
       timeSlot: req.body.timeSlot,
@@ -117,16 +107,8 @@ export async function createOfflineAppointment(req, res, next) {
       optInSource: 'DASHBOARD',
       recordedBy: req.user.id,
       withHold: false,
+      initialStatus: 'COMPLETED',
     });
-
-    if (payment) {
-      await confirmPayment(appointment._id, {
-        method: payment.method,
-        amount: payment.amount,
-        reference: sanitizePlainText(payment.reference || ''),
-        user: req.user,
-      });
-    }
 
     return res.status(201).json({
       success: true,
@@ -140,9 +122,6 @@ export async function createOfflineAppointment(req, res, next) {
 export async function confirmAppointmentPayment(req, res, next) {
   try {
     await confirmPayment(req.params.id, {
-      method: req.body.method,
-      amount: req.body.amount,
-      reference: sanitizePlainText(req.body.reference || ''),
       user: req.user,
     });
 
