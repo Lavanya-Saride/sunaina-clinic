@@ -178,11 +178,6 @@ export default function OfflineAppointmentModal({ canRecordPayment, onClose, onS
           <FormField id="offline-time" label="Time" type="select" placeholder={form.appointmentDate ? 'Choose a time slot' : 'Select a date first'} value={form.timeSlot} onChange={set('timeSlot')} options={slotOptions} disabled={!form.appointmentDate} />
         </div>
 
-        <label className="flex min-h-11 cursor-pointer items-start gap-3 text-[clamp(0.75rem,1.8vw,0.85rem)] leading-relaxed text-ink">
-          <input type="checkbox" checked={form.whatsappOptIn} onChange={set('whatsappOptIn')} className="mt-0.5 h-5 w-5 shrink-0 accent-maroon" />
-          <span>Patient has agreed to receive appointment messages on WhatsApp</span>
-        </label>
-
         {canRecordPayment && (
           <div className="space-y-5 rounded-2xl border border-line bg-cream/60 p-4">
             <label className="flex min-h-11 cursor-pointer items-start gap-3 text-[clamp(0.75rem,1.8vw,0.85rem)] font-semibold leading-relaxed text-ink">
