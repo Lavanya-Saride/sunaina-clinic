@@ -7,6 +7,7 @@ import { assertRecipientAllowed } from '../utils/recipientPolicy.js';
 
 const GMAIL_SEND_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
 const CLINIC_NAME = 'Sunaina Clinic';
+const GOOGLE_REVIEW_URL = 'https://maps.app.goo.gl/TjvogJyHbV8SRqcn7';
 
 const MAILBOX_DEFAULTS = {
   appointments: ['EMAIL_APPOINTMENTS', 'appointments@sunaina-clinic.com'],
@@ -144,8 +145,14 @@ function getDetails(appointment) {
 function buildLocationLine(appointment, isVirtual) {
   if (isVirtual) {
     return appointment.meetUrl
-      ? { text: `Join Google Meet: ${appointment.meetUrl}`, html: `<p><strong>Google Meet:</strong> <a href="${escapeHtml(appointment.meetUrl)}">Join Consultation</a></p>` }
-      : { text: 'Your Google Meet link will be shared shortly.', html: '<p>Your Google Meet link will be shared shortly.</p>' };
+      ? {
+          text: `Join Google Meet: ${appointment.meetUrl}`,
+          html: `<p><strong>Google Meet:</strong> <a href="${escapeHtml(appointment.meetUrl)}">Join Consultation</a></p>`,
+        }
+      : {
+          text: 'Your Google Meet link will be shared shortly.',
+          html: '<p>Your Google Meet link will be shared shortly.</p>',
+        };
   }
 
   return {
@@ -240,26 +247,19 @@ Dear ${name},
 
 Thank you for visiting Sunaina Clinic. We would be grateful if you could share your experience with us.
 
-Share your feedback: ${feedbackUrl}
+Share your feedback on Google: ${GOOGLE_REVIEW_URL}
     `.trim(),
     html: `
       <h2>Thank you for visiting Sunaina Clinic</h2>
       <p>Dear ${escapeHtml(name)},</p>
       <p>We would be grateful if you could share your experience with us.</p>
-      <p><a href="${escapeHtml(feedbackUrl)}">Share your feedback</a></p>
+      <p><a href="${escapeHtml(GOOGLE_REVIEW_URL)}">Share your feedback on Google</a></p>
     `.trim(),
   });
 }
 
-
 export async function sendNewAppointmentToClinic(appointment) {
-  const { isVirtual, type, date, timeRange, amount } = getDetails(appointment);
-  const locationText = isVirtual
-    ? `Google Meet: ${appointment.meetUrl || 'Not available'}`
-    : `Directions: ${CLINIC_MAPS_URL}`;
-  const locationHtml = isVirtual
-    ? `<strong>Google Meet:</strong> ${appointment.meetUrl ? `<a href="${escapeHtml(appointment.meetUrl)}">Join Consultation</a>` : 'Not available'}`
-    : `<strong>Directions:</strong> <a href="${escapeHtml(CLINIC_MAPS_URL)}">Get Directions to Sunaina Clinic</a>`;
+  const { type, date, timeRange, amount } = getDetails(appointment);
 
   return sendMail({
     from: getSenderMailbox(),
@@ -278,7 +278,6 @@ Consultation: ${type}
 Date: ${date}
 Time: ${timeRange}
 Amount to Collect: ₹${amount}
-${locationText}
     `.trim(),
     html: `
       <h2>New Appointment Request</h2>
@@ -291,8 +290,7 @@ ${locationText}
         <strong>Consultation:</strong> ${type}<br />
         <strong>Date:</strong> ${escapeHtml(date)}<br />
         <strong>Time:</strong> ${escapeHtml(timeRange)}<br />
-        <strong>Amount to Collect:</strong> ₹${escapeHtml(amount)}<br />
-        ${locationHtml}
+        <strong>Amount to Collect:</strong> ₹${escapeHtml(amount)}
       </p>
     `.trim(),
   });
