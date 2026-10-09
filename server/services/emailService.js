@@ -1,5 +1,9 @@
 import { randomBytes } from 'node:crypto';
-import { CLINIC_MAPS_URL, CLINIC_TIME_ZONE_LABEL, getSlotRangeLabel } from '../config/appointmentConfig.js';
+import {
+  CLINIC_MAPS_URL,
+  CLINIC_TIME_ZONE_LABEL,
+  getSlotRangeLabel,
+} from '../config/appointmentConfig.js';
 import { getGoogleAccessToken } from './googleAuth.js';
 import { formatDisplayDate } from '../utils/appointmentTime.js';
 import { providerFetch } from '../utils/providerFetch.js';
@@ -12,32 +16,45 @@ const GOOGLE_REVIEW_URL = 'https://maps.app.goo.gl/TjvogJyHbV8SRqcn7';
 const MAILBOX_DEFAULTS = {
   appointments: ['EMAIL_APPOINTMENTS', 'appointments@sunaina-clinic.com'],
   support: ['EMAIL_SUPPORT', 'support@sunaina-clinic.com'],
+  doctor: ['EMAIL_DOCTOR', 'dr.priyanka.singh@sunaina-clinic.com'],
 };
 
 export function getCompanyDomain() {
-  return (process.env.COMPANY_EMAIL_DOMAIN?.trim() || 'sunaina-clinic.com').toLowerCase();
+  return (
+    process.env.COMPANY_EMAIL_DOMAIN?.trim() || 'sunaina-clinic.com'
+  ).toLowerCase();
 }
 
 export function getSenderMailbox() {
-  const address = process.env.EMAIL_APPOINTMENTS?.trim().toLowerCase();
-
-  if (!address) {
-    throw new Error('EMAIL_APPOINTMENTS is not configured.');
-  }
+  const address = (
+    process.env.EMAIL_INFO?.trim() || 'info@sunaina-clinic.com'
+  ).toLowerCase();
 
   if (!address.endsWith(`@${getCompanyDomain()}`)) {
-    throw new Error(`EMAIL_APPOINTMENTS must be a ${getCompanyDomain()} address.`);
+    throw new Error(
+      `EMAIL_INFO must be a ${getCompanyDomain()} address.`
+    );
   }
 
   return address;
 }
 
 export function getMailbox(name) {
-  const [envKey, fallback] = MAILBOX_DEFAULTS[name];
-  const address = (process.env[envKey]?.trim() || process.env.EMAIL_APPOINTMENTS?.trim() || fallback).toLowerCase();
+  const mailbox = MAILBOX_DEFAULTS[name];
+
+  if (!mailbox) {
+    throw new Error(`Unknown mailbox: ${name}`);
+  }
+
+  const [envKey, fallback] = mailbox;
+  const address = (
+    process.env[envKey]?.trim() || fallback
+  ).toLowerCase();
 
   if (!address.endsWith(`@${getCompanyDomain()}`)) {
-    throw new Error(`${envKey} must be a ${getCompanyDomain()} address.`);
+    throw new Error(
+      `${envKey} must be a ${getCompanyDomain()} address.`
+    );
   }
 
   return address;
@@ -57,7 +74,10 @@ function stripLineBreaks(value) {
 }
 
 function encodeHeader(value) {
-  return `=?UTF-8?B?${Buffer.from(stripLineBreaks(value), 'utf8').toString('base64')}?=`;
+  return `=?UTF-8?B?${Buffer.from(
+    stripLineBreaks(value),
+    'utf8'
+  ).toString('base64')}?=`;
 }
 
 function encodeBody(value) {
@@ -67,13 +87,16 @@ function encodeBody(value) {
 }
 
 function assertRecipient(address) {
-  if (!/^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/.test(address)) {
+  if (
+    !/^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/.test(address)
+  ) {
     throw new Error('Recipient email address is invalid.');
   }
 }
 
 export function buildMimeMessage({ from, to, subject, text, html }) {
   assertRecipient(to);
+
   const boundary = `sc_${randomBytes(12).toString('hex')}`;
 
   return [
@@ -104,7 +127,11 @@ export async function sendMail({ from, to, subject, text, html }) {
   }
 
   const accessToken = await getGoogleAccessToken();
-  const raw = Buffer.from(buildMimeMessage({ from, to, subject, text, html }), 'utf8').toString('base64url');
+
+  const raw = Buffer.from(
+    buildMimeMessage({ from, to, subject, text, html }),
+    'utf8'
+  ).toString('base64url');
 
   const response = await providerFetch(GMAIL_SEND_URL, {
     method: 'POST',
@@ -118,7 +145,9 @@ export async function sendMail({ from, to, subject, text, html }) {
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    const error = new Error(data?.error?.message || 'Unable to send email.');
+    const error = new Error(
+      data?.error?.message || 'Unable to send email.'
+    );
     error.status = response.status;
     throw error;
   }
@@ -135,10 +164,11 @@ function getDetails(appointment) {
 
   return {
     isVirtual,
-    type: isVirtual ? 'Virtual Consultation' : 'Clinic Consultation',
+    type: isVirtual
+      ? 'Virtual Consultation'
+      : 'Clinic Consultation',
     date: formatDisplayDate(appointment.appointmentDate),
     timeRange: getSlotRangeLabel(appointment.timeSlot),
-    amount: appointment.paymentAmount ?? appointment.fee,
   };
 }
 
@@ -165,11 +195,9 @@ function subjectWhen(appointment) {
   return `${formatDisplayDate(appointment.appointmentDate)}, ${appointment.timeSlot} ${CLINIC_TIME_ZONE_LABEL}`;
 }
 
-function buildPatientMessage(appointment, { heading, intro, showPayment }) {
-  const { isVirtual, type, date, timeRange, amount } = getDetails(appointment);
+function buildPatientMessage(appointment, { heading, intro }) {
+  const { isVirtual, type, date, timeRange } = getDetails(appointment);
   const location = buildLocationLine(appointment, isVirtual);
-  const paymentText = showPayment ? `\nAmount Paid: ₹${amount}` : '';
-  const paymentHtml = showPayment ? `<strong>Amount Paid:</strong> ₹${escapeHtml(amount)}<br />` : '';
 
   return {
     text: `
@@ -178,7 +206,7 @@ ${intro}
 Doctor: Dr. Priyanka Singh
 Consultation: ${type}
 Date: ${date}
-Time: ${timeRange}${paymentText}
+Time: ${timeRange}
 Appointment Number: ${appointment.appointmentNumber}
 
 ${location.text}
@@ -191,7 +219,6 @@ ${location.text}
         <strong>Consultation:</strong> ${type}<br />
         <strong>Date:</strong> ${escapeHtml(date)}<br />
         <strong>Time:</strong> ${escapeHtml(timeRange)}<br />
-        ${paymentHtml}
         <strong>Appointment Number:</strong> ${escapeHtml(appointment.appointmentNumber)}
       </p>
       ${location.html}
@@ -205,7 +232,6 @@ export async function sendAppointmentConfirmationToPatient(appointment) {
   const content = buildPatientMessage(appointment, {
     heading: 'Appointment Confirmed',
     intro: 'Your appointment has been confirmed.',
-    showPayment: true,
   });
 
   return sendMail({
@@ -222,7 +248,6 @@ export async function sendAppointmentReminderToPatient(appointment) {
   const content = buildPatientMessage(appointment, {
     heading: 'Appointment Reminder',
     intro: 'This is a reminder for your upcoming appointment at Sunaina Clinic.',
-    showPayment: false,
   });
 
   return sendMail({
@@ -233,7 +258,7 @@ export async function sendAppointmentReminderToPatient(appointment) {
   });
 }
 
-export async function sendFeedbackRequestToPatient(appointment, feedbackUrl) {
+export async function sendFeedbackRequestToPatient(appointment) {
   if (!appointment.email) return null;
 
   const name = appointment.fullName;
@@ -259,16 +284,14 @@ Share your feedback on Google: ${GOOGLE_REVIEW_URL}
 }
 
 export async function sendNewAppointmentToClinic(appointment) {
-  const { type, date, timeRange, amount } = getDetails(appointment);
+  const { type, date, timeRange } = getDetails(appointment);
 
   return sendMail({
     from: getSenderMailbox(),
     to: getMailbox('appointments'),
-    subject: 'New Appointment Request - Payment Required',
+    subject: 'New Appointment Booking',
     text: `
-A new appointment request has been received.
-
-Please contact the patient to take the appointment payment.
+A new appointment booking has been received.
 
 Appointment Number: ${appointment.appointmentNumber}
 Patient: ${appointment.fullName}
@@ -277,11 +300,10 @@ Email: ${appointment.email || 'N/A'}
 Consultation: ${type}
 Date: ${date}
 Time: ${timeRange}
-Amount to Collect: ₹${amount}
     `.trim(),
     html: `
-      <h2>New Appointment Request</h2>
-      <p>A new appointment request has been received. Please contact the patient to take the appointment payment.</p>
+      <h2>New Appointment Booking</h2>
+      <p>A new appointment booking has been received.</p>
       <p>
         <strong>Appointment Number:</strong> ${escapeHtml(appointment.appointmentNumber)}<br />
         <strong>Patient:</strong> ${escapeHtml(appointment.fullName)}<br />
@@ -289,27 +311,32 @@ Amount to Collect: ₹${amount}
         <strong>Email:</strong> ${escapeHtml(appointment.email || 'N/A')}<br />
         <strong>Consultation:</strong> ${type}<br />
         <strong>Date:</strong> ${escapeHtml(date)}<br />
-        <strong>Time:</strong> ${escapeHtml(timeRange)}<br />
-        <strong>Amount to Collect:</strong> ₹${escapeHtml(amount)}
+        <strong>Time:</strong> ${escapeHtml(timeRange)}
       </p>
     `.trim(),
   });
 }
 
 export async function sendAppointmentConfirmationToClinic(appointment) {
-  const { isVirtual, type, date, timeRange, amount } = getDetails(appointment);
-  const method = appointment.paymentMethod || 'N/A';
-  const reference = appointment.paymentReference || 'N/A';
+  const { isVirtual, type, date, timeRange } = getDetails(appointment);
   const meetValue = appointment.meetUrl || 'Not available';
-  const locationText = isVirtual ? `Google Meet: ${meetValue}` : `Directions: ${CLINIC_MAPS_URL}`;
+
+  const locationText = isVirtual
+    ? `Google Meet: ${meetValue}`
+    : `Directions: ${CLINIC_MAPS_URL}`;
+
   const locationHtml = isVirtual
-    ? `<strong>Google Meet:</strong> ${appointment.meetUrl ? `<a href="${escapeHtml(appointment.meetUrl)}">Join Consultation</a>` : 'Not available'}`
+    ? `<strong>Google Meet:</strong> ${
+        appointment.meetUrl
+          ? `<a href="${escapeHtml(appointment.meetUrl)}">Join Consultation</a>`
+          : 'Not available'
+      }`
     : `<strong>Directions:</strong> <a href="${escapeHtml(CLINIC_MAPS_URL)}">Get Directions to Sunaina Clinic</a>`;
 
   return sendMail({
     from: getSenderMailbox(),
-    to: getMailbox('appointments'),
-    subject: 'New Confirmed Appointment',
+    to: getMailbox('doctor'),
+    subject: 'Appointment Confirmation - Sunaina Clinic',
     text: `
 A new appointment has been confirmed.
 
@@ -320,13 +347,10 @@ Email: ${appointment.email || 'N/A'}
 Consultation: ${type}
 Date: ${date}
 Time: ${timeRange}
-Amount Paid: ₹${amount}
-Payment Method: ${method}
-Payment Reference: ${reference}
 ${locationText}
     `.trim(),
     html: `
-      <h2>New Confirmed Appointment</h2>
+      <h2>Appointment Confirmed</h2>
       <p>A new appointment has been confirmed.</p>
       <p>
         <strong>Appointment Number:</strong> ${escapeHtml(appointment.appointmentNumber)}<br />
@@ -336,9 +360,6 @@ ${locationText}
         <strong>Consultation:</strong> ${type}<br />
         <strong>Date:</strong> ${escapeHtml(date)}<br />
         <strong>Time:</strong> ${escapeHtml(timeRange)}<br />
-        <strong>Amount Paid:</strong> ₹${escapeHtml(amount)}<br />
-        <strong>Payment Method:</strong> ${escapeHtml(method)}<br />
-        <strong>Payment Reference:</strong> ${escapeHtml(reference)}<br />
         ${locationHtml}
       </p>
     `.trim(),
@@ -350,7 +371,19 @@ export async function sendCallbackRequest({ name, phone }) {
     from: getSenderMailbox(),
     to: getMailbox('support'),
     subject: 'Patient Callback Request',
-    text: `A patient has requested a callback.\n\nName: ${name}\nPhone: ${phone}`,
-    html: `<h2>Patient Callback Request</h2><p>A patient has requested a callback.</p><p><strong>Name:</strong> ${escapeHtml(name)}<br /><strong>Phone:</strong> ${escapeHtml(phone)}</p>`,
+    text: `
+A patient has requested a callback.
+
+Name: ${name}
+Phone: ${phone}
+    `.trim(),
+    html: `
+      <h2>Patient Callback Request</h2>
+      <p>A patient has requested a callback.</p>
+      <p>
+        <strong>Name:</strong> ${escapeHtml(name)}<br />
+        <strong>Phone:</strong> ${escapeHtml(phone)}
+      </p>
+    `.trim(),
   });
 }
