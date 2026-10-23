@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -5,8 +6,8 @@ import {
   Clock,
   Phone,
   Check,
-  CalendarDays,
-  Video,
+  //CalendarDays,
+  // Video,
 } from 'lucide-react';
 import doctorPhoto from '../assets/images/doctor.jpg';
 import {
@@ -55,6 +56,7 @@ export default function Hero() {
 
             <div className="mx-auto w-full max-w-[430px] lg:mx-0">
               <div className="grid grid-cols-1 gap-3 xs:grid-cols-2">
+              {/* 
                 <Link
                   to="/appointment?type=clinic"
                   state={{
@@ -66,6 +68,7 @@ export default function Hero() {
                   {hero.bookAppointment}
                 </Link>
 
+           
                 <Link
                   to="/appointment?type=virtual"
                   state={{
@@ -76,6 +79,7 @@ export default function Hero() {
                   <Video size={16} />
                   {hero.videoConsultation}
                 </Link>
+                */}
 
                 <button
                   type="button"
@@ -129,16 +133,11 @@ export default function Hero() {
               title={hero.visitTitle}
             >
               <p className="max-w-[280px] text-[clamp(0.68rem,1.5vw,0.75rem)] leading-relaxed text-muted">
-                {CLINIC.address.lines.map(
-                  (line) => (
-                    <span
-                      key={line}
-                      className="block"
-                    >
-                      {line}
-                    </span>
-                  )
-                )}
+                {CLINIC.address.lines.map((line) => (
+                  <span key={line} className="block">
+                    {line}
+                  </span>
+                ))}
               </p>
 
               <a
@@ -147,10 +146,7 @@ export default function Hero() {
                 rel="noopener noreferrer"
                 className="mt-3 inline-flex min-h-9 items-center justify-center gap-2 rounded-full bg-maroon px-4 text-[clamp(0.68rem,1.5vw,0.75rem)] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
               >
-                <MapPin
-                  size={15}
-                  aria-hidden="true"
-                />
+                <MapPin size={15} aria-hidden="true" />
                 {hero.directionsLink}
               </a>
             </Info>
@@ -180,9 +176,7 @@ export default function Hero() {
 
               <button
                 type="button"
-                onClick={() =>
-                  setShowContact(true)
-                }
+                onClick={() => setShowContact(true)}
                 className="mt-2 inline-flex text-[clamp(0.68rem,1.5vw,0.75rem)] font-semibold text-maroon hover:underline"
               >
                 {CLINIC.phone}
@@ -193,11 +187,7 @@ export default function Hero() {
       </div>
 
       {showContact && (
-        <ContactPopup
-          onClose={() =>
-            setShowContact(false)
-          }
-        />
+        <ContactPopup onClose={() => setShowContact(false)} />
       )}
     </section>
   );
@@ -210,15 +200,9 @@ function Info({
   className = '',
 }) {
   return (
-    <div
-      className={`flex min-w-0 items-start gap-3 ${className}`}
-    >
+    <div className={`flex min-w-0 items-start gap-3 ${className}`}>
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blush text-maroon">
-        <Icon
-          size={18}
-          strokeWidth={1.8}
-          aria-hidden="true"
-        />
+        <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
       </span>
 
       <div className="min-w-0 pt-0.5">
